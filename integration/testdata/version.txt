@@ -1,0 +1,3 @@
+# Test that INIQ can be executed with -h flag
+exec iniq -h
+stdout 'INIQ'

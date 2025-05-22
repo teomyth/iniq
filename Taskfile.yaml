@@ -1,0 +1,506 @@
+version: '3'
+
+# Global settings
+silent: true  # Don't print commands before running them
+
+# Global variables
+vars:
+  PORT: '{{.PORT | default "12345"}}'
+  GO_MIN_VERSION: 1.18.0
+  TASK_MIN_VERSION: 3.0.0
+
+# Task definitions organized by category
+tasks:
+  # Main development workflow tasks
+  # These are the most frequently used tasks
+  dev:
+    desc: Start complete development environment (hot reload and HTTP server)
+    summary: |
+      Starts all development components in a coordinated way:
+      - File watcher with hot reload
+      - HTTP server for serving compiled files
+    cmds:
+      - chmod +x ./devtools/scripts/run-dev-services.sh
+      - ./devtools/scripts/run-dev-services.sh
+
+  build:
+    desc: Build binary for current platform
+    summary: Builds the main binary and script files for the current platform
+    cmds:
+      - task: build:scripts
+      - mkdir -p bin
+      - |
+        # Get version information
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0")
+        BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+        # Build with version information
+        go build -ldflags "-X 'github.com/teomyth/iniq/internal/version.version=${VERSION}' -X 'github.com/teomyth/iniq/internal/version.buildDate=${BUILD_DATE}' -X 'github.com/teomyth/iniq/internal/version.commit=${COMMIT}'" -o bin/iniq cmd/iniq/main.go
+
+        echo "✅ Built binary with version: ${VERSION}, build date: ${BUILD_DATE}, commit: ${COMMIT}"
+
+  test:
+    desc: Run all unit tests
+    cmds:
+      - echo "🧪 Running unit tests..."
+      - go test ./...
+      - echo "✅ Unit tests completed successfully"
+
+  test:all:
+    desc: Run all tests (unit and integration)
+    cmds:
+      - task: test
+      - task: test:integration
+
+  # Setup and initialization tasks
+  setup:
+    desc: Setup complete development environment
+    summary: |
+      One-time setup for development environment:
+      - Installs required development tools
+      - Updates dependencies
+      - Builds initial binary
+    cmds:
+      - task: tools:install
+      - task: deps
+      - task: build
+      - echo "✅ Development environment setup complete!"
+
+  tools:install:
+    desc: Install all development tools
+    summary: Installs Go-based development tools, watchexec, and GoReleaser
+    cmds:
+      - echo "📦 Installing Go development tools..."
+      - |
+        # Check if GOPATH/bin is in PATH
+        GOPATH=$(go env GOPATH)
+        if [[ ":$PATH:" != *":$GOPATH/bin:"* ]]; then
+          echo "⚠️ GOPATH/bin is not in your PATH. Adding it temporarily for this session."
+          export PATH="$GOPATH/bin:$PATH"
+
+          # Suggest adding to shell profile
+          echo "💡 To make this permanent, add the following line to your ~/.bashrc or ~/.zshrc:"
+          echo "   export PATH=\"\$GOPATH/bin:\$PATH\""
+        fi
+      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - task: tools:install:watchexec
+      - task: tools:install:goreleaser
+      - echo "✅ Development tools installed successfully!"
+
+  tools:install:watchexec:
+    desc: Install watchexec
+    summary: |
+      Installs watchexec based on the detected operating system:
+      - macOS: Uses Homebrew
+      - Linux: Uses direct download from GitHub
+      - Other: Provides manual installation instructions
+    cmds:
+      - echo "📦 Installing watchexec..."
+      - chmod +x ./devtools/scripts/install-watchexec.sh
+      - ./devtools/scripts/install-watchexec.sh
+
+  tools:install:goreleaser:
+    desc: Install GoReleaser
+    summary: |
+      Installs GoReleaser for release automation:
+      - Uses snap on Linux
+      - Uses Homebrew on macOS
+    cmds:
+      - echo "📦 Installing GoReleaser..."
+      - |
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+          # Linux - use snap
+          if command -v snap &> /dev/null; then
+            echo "Installing GoReleaser using snap..."
+            sudo snap install goreleaser --classic || echo "⚠️ Failed to install GoReleaser with snap. Please install manually: https://goreleaser.com/install/"
+          else
+            echo "⚠️ Snap not found. Please install GoReleaser manually: https://goreleaser.com/install/"
+          fi
+        elif [[ "$OSTYPE" == "darwin"* ]]; then
+          # macOS - use Homebrew
+          if command -v brew &> /dev/null; then
+            echo "Installing GoReleaser using Homebrew..."
+            brew install goreleaser || echo "⚠️ Failed to install GoReleaser with Homebrew. Please install manually: https://goreleaser.com/install/"
+          else
+            echo "⚠️ Homebrew not found. Please install GoReleaser manually: https://goreleaser.com/install/"
+          fi
+        else
+          echo "⚠️ Unsupported OS. Please install GoReleaser manually: https://goreleaser.com/install/"
+        fi
+      - |
+        if command -v goreleaser &> /dev/null; then
+          echo "✅ GoReleaser installed successfully: $(goreleaser --version)"
+        else
+          echo "⚠️ GoReleaser installation could not be verified. Please install manually: https://goreleaser.com/install/"
+        fi
+
+  # Development sub-tasks
+  dev:watch:
+    desc: Watch for file changes and automatically rebuild
+    cmds:
+      - task: build:scripts
+      - ./devtools/scripts/watch-files.sh
+
+  dev:serve:
+    desc: Start development HTTP server
+    cmds:
+      - ./devtools/scripts/serve-http.sh {{.PORT}}
+
+  # Build sub-tasks
+  build:scripts:
+    desc: Process and build script files
+    cmds:
+      - echo "📄 Building installation scripts..."
+      - mkdir -p bin/scripts
+      - awk 'FNR==1 && NR!=1 {print ""}; 1' scripts/common.sh scripts/install.sh > bin/scripts/install.sh
+      - awk 'FNR==1 && NR!=1 {print ""}; 1' scripts/common.sh scripts/iniq.sh > bin/scripts/iniq.sh
+      - chmod +x bin/scripts/install.sh bin/scripts/iniq.sh
+
+  build:devserver:
+    desc: Build the development HTTP server
+    cmds:
+      - echo "🔨 Building development HTTP server..."
+      - mkdir -p bin
+      - |
+        # Get version information for development
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0-dev")
+        BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+        # Build with version information
+        go build -o bin/devserver devtools/devserver/main.go
+
+        # Also build the main binary with development version info
+        go build -ldflags "-X 'github.com/teomyth/iniq/internal/version.version=${VERSION}' -X 'github.com/teomyth/iniq/internal/version.buildDate=${BUILD_DATE}' -X 'github.com/teomyth/iniq/internal/version.commit=${COMMIT}'" -o bin/iniq cmd/iniq/main.go
+      - echo "✅ Development HTTP server and iniq binary built successfully!"
+
+  build:all:
+    desc: Build binaries for all supported platforms
+    summary: |
+      Legacy build task that builds binaries for all platforms.
+      For new development, consider using 'task goreleaser:build' instead,
+      which uses GoReleaser to build binaries with consistent settings.
+      This task is kept for backward compatibility.
+    cmds:
+      - task: build:linux-amd64
+      - task: build:linux-arm64
+      - task: build:darwin-amd64
+      - task: build:darwin-arm64
+      - task: build:hashes
+
+  build:linux-amd64:
+    desc: Build binary for Linux AMD64
+    cmds:
+      - mkdir -p bin
+      - |
+        # Get version information
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0")
+        BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+        # Build with version information
+        GOOS=linux GOARCH=amd64 go build -ldflags "-X 'github.com/teomyth/iniq/internal/version.version=${VERSION}' -X 'github.com/teomyth/iniq/internal/version.buildDate=${BUILD_DATE}' -X 'github.com/teomyth/iniq/internal/version.commit=${COMMIT}'" -o bin/iniq-linux-amd64 cmd/iniq/main.go
+
+        echo "✅ Built Linux AMD64 binary with version: ${VERSION}"
+
+  build:linux-arm64:
+    desc: Build binary for Linux ARM64
+    cmds:
+      - mkdir -p bin
+      - |
+        # Get version information
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0")
+        BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+        # Build with version information
+        GOOS=linux GOARCH=arm64 go build -ldflags "-X 'github.com/teomyth/iniq/internal/version.version=${VERSION}' -X 'github.com/teomyth/iniq/internal/version.buildDate=${BUILD_DATE}' -X 'github.com/teomyth/iniq/internal/version.commit=${COMMIT}'" -o bin/iniq-linux-arm64 cmd/iniq/main.go
+
+        echo "✅ Built Linux ARM64 binary with version: ${VERSION}"
+
+  build:darwin-amd64:
+    desc: Build binary for macOS AMD64
+    cmds:
+      - mkdir -p bin
+      - |
+        # Get version information
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0")
+        BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+        # Build with version information
+        GOOS=darwin GOARCH=amd64 go build -ldflags "-X 'github.com/teomyth/iniq/internal/version.version=${VERSION}' -X 'github.com/teomyth/iniq/internal/version.buildDate=${BUILD_DATE}' -X 'github.com/teomyth/iniq/internal/version.commit=${COMMIT}'" -o bin/iniq-darwin-amd64 cmd/iniq/main.go
+
+        echo "✅ Built macOS AMD64 binary with version: ${VERSION}"
+
+  build:darwin-arm64:
+    desc: Build binary for macOS ARM64
+    cmds:
+      - mkdir -p bin
+      - |
+        # Get version information
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0")
+        BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+        # Build with version information
+        GOOS=darwin GOARCH=arm64 go build -ldflags "-X 'github.com/teomyth/iniq/internal/version.version=${VERSION}' -X 'github.com/teomyth/iniq/internal/version.buildDate=${BUILD_DATE}' -X 'github.com/teomyth/iniq/internal/version.commit=${COMMIT}'" -o bin/iniq-darwin-arm64 cmd/iniq/main.go
+
+        echo "✅ Built macOS ARM64 binary with version: ${VERSION}"
+
+  build:hashes:
+    desc: Generate SHA-256 hash files for all binaries
+    summary: |
+      Generates SHA-256 hash files for all binaries in the bin directory.
+      These hash files are used for binary verification during download.
+    cmds:
+      - echo "🔐 Generating hash files for binaries..."
+      - chmod +x ./devtools/scripts/generate-hashes.sh
+      - ./devtools/scripts/generate-hashes.sh generate bin "iniq*"
+      - ./devtools/scripts/generate-hashes.sh verify bin "iniq*"
+      - echo "✅ Hash files generated and verified successfully"
+
+  # Test sub-tasks
+  test:coverage:
+    desc: Run tests with coverage report
+    cmds:
+      - go test -cover ./...
+
+  test:race:
+    desc: Run tests with race condition detection
+    cmds:
+      - go test -race ./...
+
+  test:integration:
+    desc: Run integration tests
+    summary: |
+      Runs integration tests using testscript package.
+      These tests verify the behavior of the INIQ CLI tool
+      in a controlled environment.
+    cmds:
+      - echo "🧪 Running integration tests..."
+      - go test -tags=integration ./integration/...
+      - echo "✅ Integration tests completed successfully"
+
+  test:dev-env:
+    desc: Test the development environment setup
+    summary: |
+      Runs a comprehensive test of the development environment:
+      - Builds scripts and binaries
+      - Starts the development server
+      - Tests script and binary downloads
+      - Verifies URL replacements
+    cmds:
+      - ./devtools/tests/test-dev-environment.sh
+
+  # Code quality tasks
+  lint:
+    desc: Run static code analysis
+    cmds:
+      - go vet ./...
+      - golangci-lint run ./...
+
+  fmt:
+    desc: Format code
+    cmds:
+      - go fmt ./...
+
+  # Dependency management tasks
+  deps:
+    desc: Update dependencies
+    cmds:
+      - go mod tidy
+      - go mod verify
+
+  # Verification tasks
+  # cloudflared check task has been removed
+
+  # Release tasks
+  release:
+    desc: Prepare a release version
+    summary: |
+      Prepares a release version by:
+      1. Running tests
+      2. Building binaries for all platforms with GoReleaser
+      3. Generating archives and hash files
+    cmds:
+      - task: test
+      - |
+        # Get version information for release
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0")
+        echo "🚀 Preparing release version: ${VERSION}"
+      - task: goreleaser:build
+      - echo "✅ Release preparation complete!"
+      - echo "📁 Release artifacts available in the dist/ directory"
+
+  # Cleanup tasks
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf bin/*
+      - rm -rf dist/
+      - rm -rf tmp/
+
+  clean:all:
+    desc: Clean all build artifacts and development files
+    summary: |
+      Comprehensive cleanup that removes:
+      - Build artifacts (bin/, dist/, tmp/)
+      - Development status files
+      - Stops all development services
+    cmds:
+      - task: clean:dev
+      - task: clean
+      - echo "✅ All build artifacts and development files cleaned"
+
+  clean:dev:
+    desc: Stop all development services
+    summary: |
+      Stops all development services:
+      - File watcher (watchexec)
+      - HTTP server (devserver)
+    cmds:
+      - ./devtools/scripts/clean-dev-env.sh
+
+  # Version management tasks
+
+  # Version management commands
+  version:current:
+    desc: Display current version
+    cmds:
+      - git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0"
+
+  version:next:
+    desc: Display next suggested version
+    cmds:
+      - |
+        if command -v svu >/dev/null 2>&1; then
+          svu next
+        else
+          echo "svu tool not found. Install with: go install github.com/caarlos0/svu/v2/cmd/svu@latest"
+          exit 1
+        fi
+
+  version:patch:
+    desc: Increment patch version (Z in vX.Y.Z)
+    cmds:
+      - |
+        if ! command -v svu >/dev/null 2>&1; then
+          echo "svu tool not found. Install with: go install github.com/caarlos0/svu/v2/cmd/svu@latest"
+          exit 1
+        fi
+
+        CURRENT_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0")
+        echo "Current version: ${CURRENT_VERSION}"
+
+        VERSION=$(svu patch)
+        echo "Creating new version tag: ${VERSION}"
+
+        git tag -a ${VERSION} -m "Release ${VERSION}"
+        echo "✅ Version tag created: ${VERSION}"
+        echo "Push the tag with: git push origin ${VERSION}"
+
+  version:minor:
+    desc: Increment minor version (Y in vX.Y.Z)
+    cmds:
+      - |
+        if ! command -v svu >/dev/null 2>&1; then
+          echo "svu tool not found. Install with: go install github.com/caarlos0/svu/v2/cmd/svu@latest"
+          exit 1
+        fi
+
+        CURRENT_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0")
+        echo "Current version: ${CURRENT_VERSION}"
+
+        VERSION=$(svu minor)
+        echo "Creating new version tag: ${VERSION}"
+
+        git tag -a ${VERSION} -m "Release ${VERSION}"
+        echo "✅ Version tag created: ${VERSION}"
+        echo "Push the tag with: git push origin ${VERSION}"
+
+  version:major:
+    desc: Increment major version (X in vX.Y.Z)
+    cmds:
+      - |
+        if ! command -v svu >/dev/null 2>&1; then
+          echo "svu tool not found. Install with: go install github.com/caarlos0/svu/v2/cmd/svu@latest"
+          exit 1
+        fi
+
+        CURRENT_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0")
+        echo "Current version: ${CURRENT_VERSION}"
+
+        VERSION=$(svu major)
+        echo "Creating new version tag: ${VERSION}"
+
+        git tag -a ${VERSION} -m "Release ${VERSION}"
+        echo "✅ Version tag created: ${VERSION}"
+        echo "Push the tag with: git push origin ${VERSION}"
+
+  version:release:
+    desc: Prepare and build a release
+    cmds:
+      - task: test:all
+      - |
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0")
+        echo "🚀 Building release for version: ${VERSION}"
+      - task: goreleaser:release:snapshot
+      - echo "✅ Release ${VERSION} prepared successfully"
+
+  version:install-svu:
+    desc: Install svu (Semantic Version Util) tool
+    cmds:
+      - chmod +x ./devtools/scripts/install-svu.sh
+      - ./devtools/scripts/install-svu.sh
+
+  # GoReleaser tasks
+  goreleaser:check:
+    desc: Check GoReleaser configuration
+    summary: |
+      Validates the GoReleaser configuration file (.goreleaser.yaml)
+      to ensure it's correctly formatted and uses valid options.
+    cmds:
+      - |
+        if ! command -v goreleaser &> /dev/null; then
+          echo "⚠️ GoReleaser not found. Installing..."
+          task: tools:install:goreleaser
+        fi
+      - echo "🔍 Checking GoReleaser configuration..."
+      - goreleaser check
+      - echo "✅ GoReleaser configuration is valid"
+
+  goreleaser:build:
+    desc: Build binaries using GoReleaser (without publishing)
+    summary: |
+      Builds binaries for all platforms using GoReleaser
+      without creating a release or publishing artifacts.
+    cmds:
+      - |
+        if ! command -v goreleaser &> /dev/null; then
+          echo "⚠️ GoReleaser not found. Installing..."
+          task: tools:install:goreleaser
+        fi
+      - echo "🔨 Building binaries with GoReleaser..."
+      - goreleaser build --snapshot --clean
+      - echo "✅ Binaries built successfully in the dist/ directory"
+
+  goreleaser:release:snapshot:
+    desc: Test the full release process without publishing
+    summary: |
+      Runs the full release process in snapshot mode:
+      - Builds binaries for all platforms
+      - Creates archives and checksums
+      - Generates release notes
+      - Does NOT publish to GitHub
+    cmds:
+      - |
+        if ! command -v goreleaser &> /dev/null; then
+          echo "⚠️ GoReleaser not found. Installing..."
+          task: tools:install:goreleaser
+        fi
+      - echo "🚀 Testing release process with GoReleaser..."
+      - goreleaser release --snapshot --clean --skip=publish
+      - echo "✅ Release process completed successfully"
+      - echo "📁 Release artifacts available in the dist/ directory"

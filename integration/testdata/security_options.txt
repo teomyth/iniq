@@ -1,0 +1,37 @@
+# Test security options
+# This test verifies that INIQ can handle security options correctly
+
+# Test --all flag
+exec iniq --all --help
+stdout 'INIQ'
+stdout 'all'
+
+# Test --backup flag
+exec iniq --backup --help
+stdout 'INIQ'
+stdout 'backup'
+
+# Test --all and --backup flags together
+exec iniq --all --backup --help
+stdout 'INIQ'
+stdout 'all'
+stdout 'backup'
+
+# Test --all flag with --dry-run
+exec iniq --all --dry-run -y
+stdout 'Would disable SSH root login'
+stdout 'Would disable SSH password authentication'
+
+# Test --backup flag with --help
+exec iniq --backup --help
+stdout 'backup'
+
+# Test --password flag with --help
+exec iniq --password --help
+stdout 'password'
+
+# Test short options
+exec iniq -a -b --help
+stdout 'INIQ'
+stdout 'all'
+stdout 'backup'

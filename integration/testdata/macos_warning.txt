@@ -1,0 +1,28 @@
+# Test macOS warning functionality
+# Note: These tests will behave differently on macOS vs Linux
+
+# Test 1: Status command should show warning on macOS, but work on Linux
+exec iniq --status -y
+# On macOS: should show warning
+# On Linux: should work normally
+stdout 'INIQ SYSTEM STATUS'
+
+# Test 2: Quiet mode should suppress warnings
+exec iniq --status -q
+stdout 'INIQ SYSTEM STATUS'
+# Should not show macOS warning even on macOS
+
+# Test 3: Help command should work without warnings (doesn't trigger main logic)
+exec iniq --help
+stdout 'INIQ'
+stdout 'Usage:'
+
+# Test 4: Version command should work without warnings
+exec iniq version
+stdout 'INIQ Version Information'
+
+# Test 5: Dry run with user creation should show warning on macOS
+exec iniq -u testuser --no-pass --dry-run -y -S
+stdout 'Would create user testuser'
+# On macOS: should also show warning
+# On Linux: should work normally

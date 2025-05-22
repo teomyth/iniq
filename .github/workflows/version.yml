@@ -1,0 +1,196 @@
+name: Version Management and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version type to bump'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: 'Dry run (do not create tag or release)'
+        required: false
+        default: 'false'
+        type: boolean
+      release_notes:
+        description: 'Additional release notes'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  version:
+    name: Bump Version and Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for proper version detection
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+          cache: true
+
+      - name: Install tools
+        run: |
+          go install github.com/caarlos0/svu/v2/cmd/svu@latest
+          go install github.com/git-chglog/git-chglog/cmd/git-chglog@latest
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Get current version
+        id: current_version
+        run: echo "VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo 'v0.1.0')" >> $GITHUB_OUTPUT
+
+      - name: Calculate next version
+        id: next_version
+        run: |
+          VERSION_TYPE=${{ github.event.inputs.version_type }}
+          NEXT_VERSION=$(svu $VERSION_TYPE)
+          echo "VERSION=$NEXT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Setup git-chglog config
+        if: ${{ github.event.inputs.dry_run == 'false' }}
+        run: |
+          mkdir -p .chglog
+          cat > .chglog/config.yml << 'EOF'
+          style: github
+          template: CHANGELOG.tpl.md
+          info:
+            title: CHANGELOG
+            repository_url: https://github.com/teomyth/iniq
+          options:
+            commits:
+              filters:
+                Type:
+                  - feat
+                  - fix
+                  - perf
+                  - refactor
+                  - docs
+            commit_groups:
+              title_maps:
+                feat: Features
+                fix: Bug Fixes
+                perf: Performance Improvements
+                refactor: Code Refactoring
+                docs: Documentation
+            header:
+              pattern: "^(\\w*)(?:\\(([\\w\\$\\.\\-\\*\\s]*)\\))?\\:\\s(.*)$"
+              pattern_maps:
+                - Type
+                - Scope
+                - Subject
+            notes:
+              keywords:
+                - BREAKING CHANGE
+          EOF
+
+          cat > .chglog/CHANGELOG.tpl.md << 'EOF'
+          {{ if .Versions -}}
+          {{ range .Versions }}
+          {{ if .Tag.Previous -}}
+          ## Changes from {{ .Tag.Previous.Name }} to {{ .Tag.Name }}
+          {{ end -}}
+          {{ range .CommitGroups -}}
+          ### {{ .Title }}
+          {{ range .Commits -}}
+          * {{ if .Scope }}**{{ .Scope }}:** {{ end }}{{ .Subject }}
+          {{ end }}
+          {{ end -}}
+
+          {{- if .RevertCommits -}}
+          ### Reverts
+          {{ range .RevertCommits -}}
+          * {{ .Revert.Header }}
+          {{ end }}
+          {{ end -}}
+
+          {{- if .MergeCommits -}}
+          ### Pull Requests
+          {{ range .MergeCommits -}}
+          * {{ .Header }}
+          {{ end }}
+          {{ end -}}
+
+          {{- if .NoteGroups -}}
+          {{ range .NoteGroups -}}
+          ### {{ .Title }}
+          {{ range .Notes }}
+          {{ .Body }}
+          {{ end }}
+          {{ end -}}
+          {{ end -}}
+          {{ end -}}
+          {{ end -}}
+          EOF
+
+      - name: Generate changelog
+        if: ${{ github.event.inputs.dry_run == 'false' }}
+        id: changelog
+        run: |
+          CURRENT_VERSION="${{ steps.current_version.outputs.VERSION }}"
+          NEXT_VERSION="${{ steps.next_version.outputs.VERSION }}"
+
+          # Generate changelog between current and next version
+          if [ "$CURRENT_VERSION" != "v0.1.0" ]; then
+            git-chglog --next-tag "$NEXT_VERSION" -o CHANGELOG.md "$CURRENT_VERSION..$NEXT_VERSION"
+          else
+            git-chglog --next-tag "$NEXT_VERSION" -o CHANGELOG.md
+          fi
+
+          # Store changelog content for release notes
+          CHANGELOG=$(cat CHANGELOG.md)
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          echo "$CHANGELOG" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create tag (dry run)
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: |
+          echo "Current version: ${{ steps.current_version.outputs.VERSION }}"
+          echo "Next version would be: ${{ steps.next_version.outputs.VERSION }}"
+          echo "This is a dry run, no tag will be created."
+
+      - name: Create and push tag
+        if: ${{ github.event.inputs.dry_run == 'false' }}
+        run: |
+          echo "Current version: ${{ steps.current_version.outputs.VERSION }}"
+          echo "Creating new version tag: ${{ steps.next_version.outputs.VERSION }}"
+
+          git tag -a ${{ steps.next_version.outputs.VERSION }} -m "Release ${{ steps.next_version.outputs.VERSION }}"
+          git push origin ${{ steps.next_version.outputs.VERSION }}
+
+          echo "✅ Version tag created and pushed: ${{ steps.next_version.outputs.VERSION }}"
+
+  release:
+    name: Trigger GoReleaser
+    needs: version
+    if: ${{ github.event.inputs.dry_run == 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for proper version detection
+
+      - name: Display Release Information
+        run: |
+          echo "✅ Version tag created: ${{ needs.version.outputs.version }}"
+          echo "🚀 GoReleaser workflow will be automatically triggered by the tag push"
+          echo "📝 The release will include the following changelog:"
+          echo "${{ env.CHANGELOG }}"
+          echo ""
+          echo "📝 Additional release notes:"
+          echo "${{ github.event.inputs.release_notes }}"

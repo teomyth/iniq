@@ -1,0 +1,6 @@
+# Test basic help command
+# This is a simple test to verify that INIQ can be executed
+
+# Run INIQ with -h flag to show help
+exec iniq -h
+stdout 'INIQ'

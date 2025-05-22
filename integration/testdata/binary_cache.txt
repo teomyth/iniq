@@ -1,0 +1,6 @@
+# Test help flag
+# This test verifies that INIQ can show help information
+
+# Run INIQ with -h flag
+exec iniq -h
+stdout 'INIQ'

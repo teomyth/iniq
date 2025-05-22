@@ -1,0 +1,71 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Test directories and files
+test-*.sh
+
+# Integration test binaries
+integration/iniq
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# Development temporary files
+tmp/
+.dev-server-port
+.dev-status/
+devtools/tmp/
+dev-output.log
+*-output.log
+*.log
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.imports
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+
+# Backup files
+*.bak
+*.backup
+*~
+*.old
+*.orig
+*.tmp
+docs/backup/
+
+# History files
+.bash_history
+.zsh_history
+.history/
+
+# Environment setup files
+setup-env.sh
+
+# Project TODO list
+TODO.md
+# Exclude old documentation files
+/docs/0*.md
+/docs/1*.md

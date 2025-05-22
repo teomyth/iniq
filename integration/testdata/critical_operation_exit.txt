@@ -1,0 +1,21 @@
+# Test critical operation exit behavior
+# This test verifies that INIQ exits immediately when critical operations (like user creation) fail
+
+# Test 1: User creation failure should cause immediate exit
+# We'll test this by trying to create a user with conflicting password options
+! exec iniq -u testuser --password --no-pass -y --dry-run -S
+stdout 'cannot specify both --password and --no-pass options'
+stdout 'Critical operation.*failed. Exiting...'
+
+# Test 2: User creation failure in non-interactive mode should cause immediate exit
+! exec iniq -u testuser -y --dry-run -S
+stdout 'creating user.*requires password input'
+stdout 'Critical operation.*failed. Exiting...'
+
+# Test 3: Version command should still work (basic functionality test)
+exec iniq version
+stdout 'INIQ Version Information'
+
+# Test 4: Help should work
+exec iniq --help
+stdout 'Usage:'

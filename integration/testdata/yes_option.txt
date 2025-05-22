@@ -1,0 +1,16 @@
+# Test --yes option
+# This test verifies that INIQ can handle the --yes option correctly
+
+# Test --yes flag with --help
+exec iniq --yes --help
+stdout 'INIQ'
+stdout 'yes'
+
+# Test -y short flag with --help
+exec iniq -y --help
+stdout 'INIQ'
+stdout 'yes'
+
+# Test --yes flag with --dry-run
+exec iniq --yes --dry-run
+stdout 'No operations specified'

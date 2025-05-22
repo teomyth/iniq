@@ -1,0 +1,30 @@
+# Test retry logic improvements
+# This test verifies that INIQ doesn't retry configuration/parameter errors
+
+# Test 1: Parameter error should not retry (immediate failure)
+! exec iniq -u testuser --password --no-pass -y --dry-run -S
+stdout 'cannot specify both --password and --no-pass options'
+stdout 'Critical operation.*failed. Exiting...'
+# Should NOT see "Retrying" messages
+! stdout 'Retrying'
+
+# Test 2: Password input error should not retry (immediate failure)  
+! exec iniq -u testuser -y --dry-run -S
+stdout 'creating user.*requires password input'
+stdout 'Critical operation.*failed. Exiting...'
+# Should NOT see "Retrying" messages
+! stdout 'Retrying'
+
+# Test 3: Successful operation should work normally
+exec iniq -u testuser --no-pass -y --dry-run -S
+stdout 'Would create user testuser'
+stdout 'Would create user testuser without password'
+stdout 'completed successfully'
+
+# Test 4: Version command should still work (basic functionality test)
+exec iniq version
+stdout 'INIQ Version Information'
+
+# Test 5: Help should work
+exec iniq --help
+stdout 'Usage:'
