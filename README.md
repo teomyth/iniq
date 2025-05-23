@@ -22,15 +22,17 @@ INIQ (pronounced "in-ick") is a cross-platform command-line tool for Linux syste
 
 #### Option 1: Using the install script (Recommended)
 
+Install INIQ globally:
+
 ```bash
-# Install INIQ globally
 curl -L https://github.com/teomyth/iniq/releases/latest/download/install.sh | sudo bash
 ```
 
 #### Option 2: Manual installation
 
+For Linux (AMD64):
+
 ```bash
-# For Linux (AMD64)
 curl -L https://github.com/teomyth/iniq/releases/latest/download/iniq-linux-amd64.tar.gz -o iniq.tar.gz
 tar -xzf iniq.tar.gz
 chmod +x iniq
@@ -39,8 +41,9 @@ sudo mv iniq /usr/local/bin/
 
 ### Install and Run
 
+Install INIQ and run immediately:
+
 ```bash
-# Install INIQ and run immediately
 curl -L https://github.com/teomyth/iniq/releases/latest/download/install.sh | sudo bash && sudo iniq
 ```
 
@@ -50,39 +53,47 @@ curl -L https://github.com/teomyth/iniq/releases/latest/download/install.sh | su
 
 ### Basic Setup with Local Key
 
+Create a non-root user with sudo privileges and set up SSH key authentication:
+
 ```bash
-# Create a non-root user with sudo privileges and set up SSH key authentication
 sudo iniq -u newuser -k /path/to/id_rsa.pub
 ```
 
 ### Setup with GitHub Keys
 
+Create a non-root user and fetch SSH keys from a GitHub account:
+
 ```bash
-# Create a non-root user and fetch SSH keys from a GitHub account
 sudo iniq -u newuser -k gh:username
 ```
 
 ### Full Security Hardening
 
+Create a non-root user, set up SSH keys, and apply security hardening:
+
 ```bash
-# Create a non-root user, set up SSH keys, and apply security hardening
 sudo iniq -u newuser -k gh:username -a
 ```
 
 ### Check System Status
 
-```bash
-# Check current system configuration without making changes
-sudo iniq --status
+Check current system configuration without making changes:
 
-# Check status for a specific user
+```bash
+sudo iniq --status
+```
+
+Check status for a specific user:
+
+```bash
 sudo iniq --status -u username
 ```
 
 ### Running Without Sudo
 
+Limited functionality - only operations that don't require root privileges:
+
 ```bash
-# Limited functionality - only operations that don't require root privileges
 iniq -S -k gh:username
 ```
 
@@ -103,21 +114,29 @@ If your user doesn't have sudo privileges, you can add it to the sudo group with
 
 #### As Current User (Using `su`)
 
-```bash
-# On Debian/Ubuntu
-su -c "/usr/sbin/usermod -aG sudo $(whoami)"
+On Debian/Ubuntu:
 
-# On CentOS/RHEL/Fedora
+```bash
+su -c "/usr/sbin/usermod -aG sudo $(whoami)"
+```
+
+On CentOS/RHEL/Fedora:
+
+```bash
 su -c "/usr/sbin/usermod -aG wheel $(whoami)"
 ```
 
 #### As Root User (After Switching to Root)
 
-```bash
-# On Debian/Ubuntu
-/usr/sbin/usermod -aG sudo USERNAME
+On Debian/Ubuntu:
 
-# On CentOS/RHEL/Fedora
+```bash
+/usr/sbin/usermod -aG sudo USERNAME
+```
+
+On CentOS/RHEL/Fedora:
+
+```bash
 /usr/sbin/usermod -aG wheel USERNAME
 ```
 
@@ -129,10 +148,11 @@ After adding your user to the sudo group, you'll need to log out and log back in
 
 ### Running with Limited Functionality
 
-If you can't obtain sudo privileges, you can still use INIQ with limited functionality:
+If you can't obtain sudo privileges, you can still use INIQ with limited functionality.
+
+Skip operations requiring sudo:
 
 ```bash
-# Skip operations requiring sudo
 iniq -S -k gh:username
 ```
 
@@ -140,16 +160,23 @@ This will only perform operations that don't require elevated privileges, such a
 
 ## Advanced Usage
 
-After installation, you can run INIQ with various options:
+After installation, you can run INIQ with various options.
+
+Run in interactive mode (recommended for first-time users):
 
 ```bash
-# Run in interactive mode (recommended for first-time users)
 sudo iniq
+```
 
-# Run in non-interactive mode with specific options
+Run in non-interactive mode with specific options:
+
+```bash
 sudo iniq -y --user admin --key gh:username
+```
 
-# Check system status without making changes
+Check system status without making changes:
+
+```bash
 sudo iniq --status
 ```
 
@@ -159,15 +186,22 @@ INIQ is an open-source project and contributions are welcome. If you're interest
 
 ### Quick Start for Development
 
+Clone the repository:
+
 ```bash
-# Clone the repository
 git clone https://github.com/teomyth/iniq.git
 cd iniq
+```
 
-# Setup development environment
+Setup development environment:
+
+```bash
 task setup
+```
 
-# Run tests
+Run tests:
+
+```bash
 task test
 ```
 
