@@ -1,6 +1,6 @@
 # INIQ
 
-INIQ (pronounced "in-ick") is a cross-platform command-line tool for Linux/macOS system initialization. It streamlines the process of setting up new systems with proper user accounts, SSH access, and security configurations.
+INIQ (pronounced "in-ick") is a cross-platform command-line tool for Linux system initialization. It streamlines the process of setting up new systems with proper user accounts, SSH access, and security configurations.
 
 ## Features
 
@@ -11,7 +11,7 @@ INIQ (pronounced "in-ick") is a cross-platform command-line tool for Linux/macOS
 - **System Status**: Check current system configuration without making changes
 - **Backup Feature**: Automatically create timestamped backups of configuration files
 - **Password Management**: Set passwords for users interactively
-- **Cross-Platform**: Works on Linux and macOS
+- **Cross-Platform**: Works on Linux
 - **Interactive Mode**: Guided setup with sensible defaults
 - **Non-Interactive Mode**: Suitable for scripting and automation
 - **Configuration Files**: Support for YAML configuration files
@@ -32,12 +32,6 @@ curl -L https://github.com/teomyth/iniq/releases/latest/download/install.sh | su
 ```bash
 # For Linux (AMD64)
 curl -L https://github.com/teomyth/iniq/releases/latest/download/iniq-linux-amd64.tar.gz -o iniq.tar.gz
-tar -xzf iniq.tar.gz
-chmod +x iniq
-sudo mv iniq /usr/local/bin/
-
-# For macOS (ARM64)
-curl -L https://github.com/teomyth/iniq/releases/latest/download/iniq-darwin-arm64.tar.gz -o iniq.tar.gz
 tar -xzf iniq.tar.gz
 chmod +x iniq
 sudo mv iniq /usr/local/bin/
@@ -115,9 +109,6 @@ su -c "/usr/sbin/usermod -aG sudo $(whoami)"
 
 # On CentOS/RHEL/Fedora
 su -c "/usr/sbin/usermod -aG wheel $(whoami)"
-
-# On macOS
-su -c "dseditgroup -o edit -a $(whoami) -t user admin"
 ```
 
 #### As Root User (After Switching to Root)
@@ -128,9 +119,6 @@ su -c "dseditgroup -o edit -a $(whoami) -t user admin"
 
 # On CentOS/RHEL/Fedora
 /usr/sbin/usermod -aG wheel USERNAME
-
-# On macOS
-dseditgroup -o edit -a USERNAME -t user admin
 ```
 
 > **Note**: Replace `USERNAME` with your actual username.
