@@ -67,7 +67,7 @@ release:
   draft: false
   prerelease: auto
   extra_files:
-    - glob: scripts/install.sh
+    - glob: install.sh
   header: |
     # INIQ {{.Version}}
   footer: |

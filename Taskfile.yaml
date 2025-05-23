@@ -158,9 +158,9 @@ tasks:
     desc: Process and build script files
     cmds:
       - echo "📄 Building installation scripts..."
-      - mkdir -p bin/scripts
-      - cp scripts/install.sh bin/scripts/install.sh
-      - chmod +x bin/scripts/install.sh
+      - mkdir -p bin
+      - cp install.sh bin/install.sh
+      - chmod +x bin/install.sh
 
   build:devserver:
     desc: Build the development HTTP server
