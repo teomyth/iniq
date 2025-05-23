@@ -25,7 +25,6 @@ builds:
       - -X github.com/teomyth/iniq/internal/version.commit={{.Commit}}
     goos:
       - linux
-      - darwin
     goarch:
       - amd64
       - arm64
@@ -74,28 +73,16 @@ release:
 
     ### Linux (AMD64)
     ```bash
-    curl -L https://github.com/teomyth/iniq/releases/download/{{.Version}}/iniq-linux-amd64 -o iniq
+    curl -L https://github.com/teomyth/iniq/releases/download/{{.Version}}/iniq-linux-amd64.tar.gz -o iniq.tar.gz
+    tar -xzf iniq.tar.gz
     chmod +x iniq
     sudo mv iniq /usr/local/bin/
     ```
 
     ### Linux (ARM64)
     ```bash
-    curl -L https://github.com/teomyth/iniq/releases/download/{{.Version}}/iniq-linux-arm64 -o iniq
-    chmod +x iniq
-    sudo mv iniq /usr/local/bin/
-    ```
-
-    ### macOS (AMD64)
-    ```bash
-    curl -L https://github.com/teomyth/iniq/releases/download/{{.Version}}/iniq-darwin-amd64 -o iniq
-    chmod +x iniq
-    sudo mv iniq /usr/local/bin/
-    ```
-
-    ### macOS (ARM64)
-    ```bash
-    curl -L https://github.com/teomyth/iniq/releases/download/{{.Version}}/iniq-darwin-arm64 -o iniq
+    curl -L https://github.com/teomyth/iniq/releases/download/{{.Version}}/iniq-linux-arm64.tar.gz -o iniq.tar.gz
+    tar -xzf iniq.tar.gz
     chmod +x iniq
     sudo mv iniq /usr/local/bin/
     ```

@@ -120,7 +120,6 @@ tasks:
     summary: |
       Installs GoReleaser for release automation:
       - Uses snap on Linux
-      - Uses Homebrew on macOS
     cmds:
       - echo "📦 Installing GoReleaser..."
       - |
@@ -131,14 +130,6 @@ tasks:
             sudo snap install goreleaser --classic || echo "⚠️ Failed to install GoReleaser with snap. Please install manually: https://goreleaser.com/install/"
           else
             echo "⚠️ Snap not found. Please install GoReleaser manually: https://goreleaser.com/install/"
-          fi
-        elif [[ "$OSTYPE" == "darwin"* ]]; then
-          # macOS - use Homebrew
-          if command -v brew &> /dev/null; then
-            echo "Installing GoReleaser using Homebrew..."
-            brew install goreleaser || echo "⚠️ Failed to install GoReleaser with Homebrew. Please install manually: https://goreleaser.com/install/"
-          else
-            echo "⚠️ Homebrew not found. Please install GoReleaser manually: https://goreleaser.com/install/"
           fi
         else
           echo "⚠️ Unsupported OS. Please install GoReleaser manually: https://goreleaser.com/install/"

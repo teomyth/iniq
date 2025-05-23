@@ -80,20 +80,6 @@ sudo pacman -S go
 sudo pacman -S go-task
 ```
 
-**macOS**
-```bash
-# 1. Install Go
-## Option 1: Using Homebrew
-brew install go
-
-## Option 2: Download from go.dev
-# Download from https://go.dev/dl/ and follow installation instructions
-
-# 2. Install Task
-## Using Homebrew
-brew install go-task/tap/go-task
-```
-
 **Any platform with Go installed**
 ```bash
 # Install Task directly using Go
