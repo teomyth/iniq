@@ -2,8 +2,6 @@ module github.com/teomyth/iniq
 
 go 1.24.3
 
-toolchain go1.24.3
-
 require (
 	github.com/go-task/task/v3 v3.43.3
 	github.com/golangci/golangci-lint v1.64.8

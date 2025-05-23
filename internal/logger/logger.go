@@ -281,21 +281,21 @@ func (l *Logger) MultiLine(level string, heading string, lines []string) {
 	// Log the heading with appropriate icon
 	switch level {
 	case "debug":
-		l.Debug(heading)
+		l.Debug("%s", heading)
 	case "info":
-		l.Info(heading)
+		l.Info("%s", heading)
 	case "warning":
-		l.Warning(heading)
+		l.Warning("%s", heading)
 	case "error":
-		l.Error(heading)
+		l.Error("%s", heading)
 	case "success":
-		l.Success(heading)
+		l.Success("%s", heading)
 	case "step":
-		l.Step(heading)
+		l.Step("%s", heading)
 	case "list-item":
-		l.ListItem(heading)
+		l.ListItem("%s", heading)
 	default:
-		l.Step(heading) // Default to step
+		l.Step("%s", heading) // Default to step
 	}
 
 	// Log each line with proper indentation
