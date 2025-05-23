@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/user"
 	"strings"
 
 	"github.com/teomyth/iniq/internal/features"
@@ -107,7 +106,7 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 			// Use custom prompt functions
 			fmt.Print("Disable SSH root login? [y/N]: ")
 			var input string
-			fmt.Scanln(&input)
+			_, _ = fmt.Scanln(&input) // Ignore error for user input
 			if strings.ToLower(input) == "y" || strings.ToLower(input) == "yes" {
 				sshNoRoot = true
 				ctx.Options["ssh-no-root"] = true
@@ -126,7 +125,7 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 			// Use custom prompt functions
 			fmt.Print("Disable SSH password authentication? [y/N]: ")
 			var input string
-			fmt.Scanln(&input)
+			_, _ = fmt.Scanln(&input) // Ignore error for user input
 			if strings.ToLower(input) == "y" || strings.ToLower(input) == "yes" {
 				sshNoPass = true
 				ctx.Options["ssh-no-password"] = true
@@ -234,19 +233,6 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 // Priority returns the feature execution priority
 func (f *Feature) Priority() int {
 	return 40 // Security configuration should run last
-}
-
-// getRealUser returns the real user, even when running with sudo
-func getRealUser() (*user.User, error) {
-	// Check if we're running with sudo
-	sudoUser := os.Getenv("SUDO_USER")
-	if sudoUser != "" && os.Geteuid() == 0 {
-		// We're running with sudo, get the original user
-		return user.Lookup(sudoUser)
-	}
-
-	// Not running with sudo or couldn't get SUDO_USER, return current user
-	return user.Current()
 }
 
 // DetectCurrentState detects and returns the current state of the security feature
@@ -403,41 +389,6 @@ func (f *Feature) ShouldPromptUser(ctx *features.ExecutionContext, state map[str
 	return true
 }
 
-// getCurrentSSHConfig checks the current SSH configuration and returns the status of root login and password authentication
-func (f *Feature) getCurrentSSHConfig() (rootLoginDisabled bool, passwordAuthDisabled bool, err error) {
-	// Get SSH config file path
-	sshConfigFile := osdetect.GetSSHConfigPath(f.osInfo)
-
-	// Read current config
-	configContent, err := os.ReadFile(sshConfigFile)
-	if err != nil {
-		return false, false, fmt.Errorf("failed to read SSH config file: %w", err)
-	}
-
-	// Parse config to check current settings
-	lines := strings.Split(string(configContent), "\n")
-
-	// Check for root login setting
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmedLine, "PermitRootLogin") && !strings.HasPrefix(trimmedLine, "#") {
-			rootLoginDisabled = strings.Contains(trimmedLine, "no")
-			break
-		}
-	}
-
-	// Check for password authentication setting
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmedLine, "PasswordAuthentication") && !strings.HasPrefix(trimmedLine, "#") {
-			passwordAuthDisabled = strings.Contains(trimmedLine, "no")
-			break
-		}
-	}
-
-	return rootLoginDisabled, passwordAuthDisabled, nil
-}
-
 // disableRootLogin disables root login in SSH config
 func (f *Feature) disableRootLogin(config string) string {
 	// For empty content, just return the comment and setting
@@ -485,10 +436,10 @@ func (f *Feature) disableRootLogin(config string) string {
 
 		// Skip any line that is a comment about PermitRootLogin modification
 		if strings.HasPrefix(trimmedLine, "# Modified by INIQ") &&
-		   strings.Contains(trimmedLine, "PermitRootLogin") {
+			strings.Contains(trimmedLine, "PermitRootLogin") {
 			// If the next line is the PermitRootLogin setting, skip that too
 			if i+1 < len(lines) &&
-			   strings.HasPrefix(strings.TrimSpace(lines[i+1]), "PermitRootLogin") {
+				strings.HasPrefix(strings.TrimSpace(lines[i+1]), "PermitRootLogin") {
 				skipLine = true
 			}
 			continue
@@ -610,10 +561,10 @@ func (f *Feature) disablePasswordAuth(config string) string {
 
 		// Skip any line that is a comment about PasswordAuthentication modification
 		if strings.HasPrefix(trimmedLine, "# Modified by INIQ") &&
-		   strings.Contains(trimmedLine, "PasswordAuthentication") {
+			strings.Contains(trimmedLine, "PasswordAuthentication") {
 			// If the next line is the PasswordAuthentication setting, skip that too
 			if i+1 < len(lines) &&
-			   strings.HasPrefix(strings.TrimSpace(lines[i+1]), "PasswordAuthentication") {
+				strings.HasPrefix(strings.TrimSpace(lines[i+1]), "PasswordAuthentication") {
 				skipLine = true
 			}
 			continue

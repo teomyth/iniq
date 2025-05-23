@@ -173,7 +173,7 @@ func GetServiceRestartCommand(serviceName string, info *Info) string {
 		}
 		return fmt.Sprintf("launchctl unload /System/Library/LaunchDaemons/%s.plist && launchctl load /System/Library/LaunchDaemons/%s.plist", serviceName, serviceName)
 	}
-	
+
 	// Try systemctl first (most modern Linux distros)
 	return fmt.Sprintf("systemctl restart %s || service %s restart", serviceName, serviceName)
 }

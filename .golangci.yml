@@ -1,0 +1,69 @@
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+
+linters-settings:
+  errcheck:
+    # Report about not checking of errors in type assertions: `a := b.(MyStruct)`;
+    check-type-assertions: false
+    # Report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`;
+    check-blank: false
+    # List of functions to exclude from checking, where each entry is a single function to exclude.
+    exclude-functions:
+      - fmt.Print
+      - fmt.Printf
+      - fmt.Println
+      - fmt.Fprint
+      - fmt.Fprintf
+      - fmt.Fprintln
+
+  unused:
+    # Mark all struct fields that have been written to as used.
+    field-writes-are-uses: true
+    # Mark all exported identifiers as used.
+    exported-fields-are-used: true
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  disable:
+    - typecheck
+
+issues:
+  # List of regexps of issue texts to exclude, empty list by default.
+  exclude:
+    # Exclude some staticcheck messages
+    - "SA9003: empty branch"
+
+  # Excluding configuration per-path, per-linter, per-text and per-source
+  exclude-rules:
+    # Exclude some linters from running on tests files.
+    - path: _test\.go
+      linters:
+        - errcheck
+        - unused
+        - staticcheck
+
+    # Exclude errcheck for intentionally ignored errors
+    - text: "Error return value of.*is not checked"
+      linters:
+        - errcheck
+      source: "// Ignore errors here"
+
+    # Allow unused functions in test files
+    - path: _test\.go
+      text: "is unused"
+      linters:
+        - unused
+
+  # Maximum issues count per one linter. Set to 0 to disable. Default is 50.
+  max-issues-per-linter: 0
+
+  # Maximum count of issues with the same text. Set to 0 to disable. Default is 3.
+  max-same-issues: 0

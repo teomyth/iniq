@@ -48,7 +48,7 @@ get_download_url() {
     # Always use the full base URL including protocol
     # For GitHub releases, the URL format is:
     # https://github.com/user/repo/releases/download/tag/filename
-    echo "${base_url}/iniq-${OS}-${ARCH}"
+    echo "${base_url}/iniq-${OS}-${ARCH}.tar.gz"
 }
 
 # This function has been removed as we don't want to assume GitHub hosting
@@ -221,11 +221,38 @@ download_binary() {
     fi
 
     # Create a temporary file for download
-    local temp_output_file="${output_file}.tmp"
+    local temp_output_file="${output_file}.tmp.tar.gz"
+    local extract_dir="${output_file}.extract"
 
     echo -e "${BLUE}→${NC} Downloading INIQ binary..."
     if download_file "$download_url" "$temp_output_file"; then
-        chmod +x "${temp_output_file}"
+        # Create extraction directory
+        mkdir -p "$extract_dir"
+        
+        # Extract tar.gz file
+        echo -e "${BLUE}→${NC} Extracting archive..."
+        if tar -xzf "$temp_output_file" -C "$extract_dir"; then
+            # Find the binary in the extracted directory
+            local binary_path=$(find "$extract_dir" -name "iniq" -type f)
+            
+            if [[ -n "$binary_path" ]]; then
+                echo -e "${GREEN}✓${NC} Archive extracted successfully"
+                # Copy the binary to the temporary output location
+                cp "$binary_path" "${output_file}.tmp"
+                chmod +x "${output_file}.tmp"
+            else
+                echo -e "${RED}×${NC} Binary not found in extracted archive" >&2
+                rm -rf "$extract_dir" "$temp_output_file"
+                return 1
+            fi
+        else
+            echo -e "${RED}×${NC} Failed to extract archive" >&2
+            rm -f "$temp_output_file"
+            return 1
+        fi
+
+        # Clean up extraction directory
+        rm -rf "$extract_dir" "$temp_output_file"
 
         # Verify downloaded binary if we have the hash file
         if [[ "$hash_downloaded" == "true" ]]; then

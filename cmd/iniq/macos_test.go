@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/teomyth/iniq/internal/logger"
@@ -113,9 +112,4 @@ func TestCheckMacOSSupport_MacOSYesMode(t *testing.T) {
 	if err != nil {
 		t.Errorf("Expected no error for macOS yes mode, got: %v", err)
 	}
-}
-
-// Test helper to check if string contains substring
-func containsString(s, substr string) bool {
-	return strings.Contains(s, substr)
 }

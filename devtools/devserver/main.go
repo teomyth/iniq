@@ -129,7 +129,7 @@ func main() {
 
 					// Serve the generated hash
 					w.Header().Set("Content-Type", "text/plain")
-					w.Write([]byte(hashContent))
+					_, _ = w.Write([]byte(hashContent))
 					return
 				}
 			} else {
@@ -191,7 +191,7 @@ func main() {
 
 		// Serve the modified HTML
 		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(htmlContent))
+		_, _ = w.Write([]byte(htmlContent))
 	})
 
 	// Status endpoint
@@ -267,7 +267,7 @@ func serveScriptWithDynamicValues(w http.ResponseWriter, r *http.Request, script
 
 	// Set content type and return script
 	w.Header().Set("Content-Type", "text/plain")
-	io.WriteString(w, modifiedContent)
+	_, _ = io.WriteString(w, modifiedContent)
 }
 
 // Calculate SHA-256 hash of a file

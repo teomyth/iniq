@@ -34,22 +34,22 @@ var (
 
 // Command line flags
 var (
-	cfgFile    string
-	verbose    bool
-	quiet      bool
-	yes        bool
-	dryRun     bool
-	skipSudo   bool
-	username   string
-	keys       []string
-	sshNoRoot  bool
-	sshNoPass  bool
-	sudoNoPass bool
-	showStatus bool
+	cfgFile     string
+	verbose     bool
+	quiet       bool
+	yes         bool
+	dryRun      bool
+	skipSudo    bool
+	username    string
+	keys        []string
+	sshNoRoot   bool
+	sshNoPass   bool
+	sudoNoPass  bool
+	showStatus  bool
 	backupFiles bool
 	allSecurity bool
 	setPassword bool
-	noPassword bool
+	noPassword  bool
 )
 
 // versionCmd represents the version command
@@ -176,7 +176,7 @@ SSH access, security configurations, password policy enforcement, and system har
 				Options:     options,
 				Logger:      log,
 				DryRun:      true, // Don't make any changes
-				Interactive: true,  // Enable interactive mode for status display
+				Interactive: true, // Enable interactive mode for status display
 				Verbose:     verbose,
 			}
 
@@ -195,7 +195,7 @@ SSH access, security configurations, password policy enforcement, and system har
 				Options:     options,
 				Logger:      indentedLogger,
 				DryRun:      true, // Don't make any changes
-				Interactive: true,  // Enable interactive mode for status display
+				Interactive: true, // Enable interactive mode for status display
 				Verbose:     verbose,
 			}
 
@@ -509,7 +509,7 @@ SSH access, security configurations, password policy enforcement, and system har
 				fmt.Println("\nMultiple sources can be separated by semicolons (;)")
 				fmt.Print("Or leave empty to skip: ")
 				var input string
-				fmt.Scanln(&input)
+				_, _ = fmt.Scanln(&input) // Ignore error for user input
 				if input != "" {
 					// Parse input SSH keys
 					keyList := strings.Split(input, ";")
@@ -798,7 +798,7 @@ SSH access, security configurations, password policy enforcement, and system har
 				} else {
 					fmt.Printf("  - Keep password authentication via SSH enabled\n")
 				}
-				operationIndex++
+				_ = operationIndex // Increment not needed here
 				fmt.Println()
 			}
 
@@ -1006,7 +1006,7 @@ SSH access, security configurations, password policy enforcement, and system har
 
 						fmt.Print("Add current user to sudo group? [Y/n]: ")
 						var input string
-						fmt.Scanln(&input)
+						_, _ = fmt.Scanln(&input) // Ignore error for user input
 
 						// Default to adding user to sudo group
 						if input == "" || strings.ToLower(input) == "y" || strings.ToLower(input) == "yes" {
@@ -1063,7 +1063,8 @@ SSH access, security configurations, password policy enforcement, and system har
 							if skipOperation {
 								// Skip this operation
 								log.Warning("Skipping %s", title)
-								err = nil
+								operationSuccess = true // Mark as successful to continue
+								break                   // Exit retry loop
 							} else {
 								// Exit
 								log.Error("Operation aborted by user")
@@ -1371,21 +1372,21 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.iniq.yaml)")
 
 	// Bind flags to viper
-	viper.BindPFlag("user", rootCmd.Flags().Lookup("user"))
-	viper.BindPFlag("keys", rootCmd.Flags().Lookup("key"))
-	viper.BindPFlag("ssh-no-root", rootCmd.Flags().Lookup("ssh-no-root"))
-	viper.BindPFlag("ssh-no-password", rootCmd.Flags().Lookup("ssh-no-password"))
-	viper.BindPFlag("sudo-nopasswd", rootCmd.Flags().Lookup("sudo-nopasswd"))
-	viper.BindPFlag("backup", rootCmd.Flags().Lookup("backup"))
-	viper.BindPFlag("all", rootCmd.Flags().Lookup("all"))
-	viper.BindPFlag("password", rootCmd.Flags().Lookup("password"))
-	viper.BindPFlag("no-password", rootCmd.Flags().Lookup("no-pass"))
-	viper.BindPFlag("skip-sudo", rootCmd.PersistentFlags().Lookup("skip-sudo"))
-	viper.BindPFlag("yes", rootCmd.PersistentFlags().Lookup("yes"))
-	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
-	viper.BindPFlag("quiet", rootCmd.PersistentFlags().Lookup("quiet"))
-	viper.BindPFlag("dry-run", rootCmd.PersistentFlags().Lookup("dry-run"))
-	viper.BindPFlag("status", rootCmd.PersistentFlags().Lookup("status"))
+	_ = viper.BindPFlag("user", rootCmd.Flags().Lookup("user"))
+	_ = viper.BindPFlag("keys", rootCmd.Flags().Lookup("key"))
+	_ = viper.BindPFlag("ssh-no-root", rootCmd.Flags().Lookup("ssh-no-root"))
+	_ = viper.BindPFlag("ssh-no-password", rootCmd.Flags().Lookup("ssh-no-password"))
+	_ = viper.BindPFlag("sudo-nopasswd", rootCmd.Flags().Lookup("sudo-nopasswd"))
+	_ = viper.BindPFlag("backup", rootCmd.Flags().Lookup("backup"))
+	_ = viper.BindPFlag("all", rootCmd.Flags().Lookup("all"))
+	_ = viper.BindPFlag("password", rootCmd.Flags().Lookup("password"))
+	_ = viper.BindPFlag("no-password", rootCmd.Flags().Lookup("no-pass"))
+	_ = viper.BindPFlag("skip-sudo", rootCmd.PersistentFlags().Lookup("skip-sudo"))
+	_ = viper.BindPFlag("yes", rootCmd.PersistentFlags().Lookup("yes"))
+	_ = viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
+	_ = viper.BindPFlag("quiet", rootCmd.PersistentFlags().Lookup("quiet"))
+	_ = viper.BindPFlag("dry-run", rootCmd.PersistentFlags().Lookup("dry-run"))
+	_ = viper.BindPFlag("status", rootCmd.PersistentFlags().Lookup("status"))
 }
 
 // isNonRetryableError checks if an error should not be retried
@@ -1719,12 +1720,6 @@ func parseKeySource(keySource string) (string, string, error) {
 	// No prefix, assume file path
 	return "file", keySource, nil
 }
-
-
-
-
-
-
 
 // checkMacOSSupport checks if running on macOS and shows appropriate warnings
 func checkMacOSSupport(osInfo *osdetect.Info, log *logger.Logger, yes, quiet bool) error {

@@ -20,7 +20,7 @@ INIQ (pronounced "in-ick") is a cross-platform command-line tool for Linux/macOS
 
 ### Installation
 
-#### Option 1: Using the installation script (recommended)
+#### Option 1: Using the install script (Recommended)
 
 ```bash
 # Install INIQ globally
@@ -29,32 +29,16 @@ curl -L https://github.com/teomyth/iniq/releases/latest/download/install.sh | su
 
 #### Option 2: Manual installation
 
-You can also download the binary directly and install it manually:
-
-##### Linux (AMD64)
 ```bash
-curl -L https://github.com/teomyth/iniq/releases/latest/download/iniq-linux-amd64 -o iniq
+# For Linux (AMD64)
+curl -L https://github.com/teomyth/iniq/releases/latest/download/iniq-linux-amd64.tar.gz -o iniq.tar.gz
+tar -xzf iniq.tar.gz
 chmod +x iniq
 sudo mv iniq /usr/local/bin/
-```
 
-##### Linux (ARM64)
-```bash
-curl -L https://github.com/teomyth/iniq/releases/latest/download/iniq-linux-arm64 -o iniq
-chmod +x iniq
-sudo mv iniq /usr/local/bin/
-```
-
-##### macOS (AMD64)
-```bash
-curl -L https://github.com/teomyth/iniq/releases/latest/download/iniq-darwin-amd64 -o iniq
-chmod +x iniq
-sudo mv iniq /usr/local/bin/
-```
-
-##### macOS (ARM64)
-```bash
-curl -L https://github.com/teomyth/iniq/releases/latest/download/iniq-darwin-arm64 -o iniq
+# For macOS (ARM64)
+curl -L https://github.com/teomyth/iniq/releases/latest/download/iniq-darwin-arm64.tar.gz -o iniq.tar.gz
+tar -xzf iniq.tar.gz
 chmod +x iniq
 sudo mv iniq /usr/local/bin/
 ```

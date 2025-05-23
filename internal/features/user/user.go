@@ -117,7 +117,7 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 					fmt.Printf("Enter username to configure (or press Enter to use yourself): ")
 				}
 				var input string
-				fmt.Scanln(&input)
+				_, _ = fmt.Scanln(&input) // Ignore error for user input
 				if input == "" {
 					username = defaultUsername
 				} else {
@@ -178,7 +178,7 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 	}
 
 	// Determine if we need to set a password
-	needsPassword := true
+	var needsPassword bool
 	if hasNoPassword && noPassword {
 		needsPassword = false
 	} else if hasSetPassword && setPassword {

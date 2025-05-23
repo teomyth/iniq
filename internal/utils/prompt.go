@@ -11,13 +11,13 @@ import (
 // Colors for terminal output
 const (
 	// Basic colors
-	ColorReset  = "\033[0m"
-	ColorGray   = "\033[90m"
-	ColorGreen  = "\033[32m"
-	ColorYellow = "\033[33m"
-	ColorBlue   = "\033[34m"
-	ColorRed    = "\033[31m"
-	ColorCyan   = "\033[36m"
+	ColorReset   = "\033[0m"
+	ColorGray    = "\033[90m"
+	ColorGreen   = "\033[32m"
+	ColorYellow  = "\033[33m"
+	ColorBlue    = "\033[34m"
+	ColorRed     = "\033[31m"
+	ColorCyan    = "\033[36m"
 	ColorMagenta = "\033[35m"
 
 	// Bright colors
@@ -32,14 +32,14 @@ const (
 	ColorUnderline = "\033[4m"
 
 	// Combined styles
-	ColorHeaderBlue = "\033[1;34m"  // Bold Blue
-	ColorHeaderCyan = "\033[1;36m"  // Bold Cyan
-	ColorSuccess    = "\033[32m"    // Green
-	ColorWarning    = "\033[33m"    // Yellow
-	ColorError      = "\033[31m"    // Red
-	ColorInfo       = "\033[34m"    // Blue
-	ColorDebug      = "\033[36m"    // Cyan
-	ColorListItem   = "\033[90m"    // Gray
+	ColorHeaderBlue = "\033[1;34m" // Bold Blue
+	ColorHeaderCyan = "\033[1;36m" // Bold Cyan
+	ColorSuccess    = "\033[32m"   // Green
+	ColorWarning    = "\033[33m"   // Yellow
+	ColorError      = "\033[31m"   // Red
+	ColorInfo       = "\033[34m"   // Blue
+	ColorDebug      = "\033[36m"   // Cyan
+	ColorListItem   = "\033[90m"   // Gray
 )
 
 // PromptYesNo asks the user a yes/no question and returns true for yes, false for no.

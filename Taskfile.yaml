@@ -53,6 +53,21 @@ tasks:
       - task: test
       - task: test:integration
 
+  ci:
+    desc: Run all CI checks (lint, test, build)
+    summary: |
+      Runs all continuous integration checks:
+      - Code formatting
+      - Static code analysis (lint)
+      - All tests (unit and integration)
+      - Build verification
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: test:all
+      - task: build
+      - echo "✅ All CI checks passed successfully!"
+
   # Setup and initialization tasks
   setup:
     desc: Setup complete development environment
@@ -298,6 +313,7 @@ tasks:
   lint:
     desc: Run static code analysis
     cmds:
+      - go mod tidy
       - go vet ./...
       - golangci-lint run ./...
 

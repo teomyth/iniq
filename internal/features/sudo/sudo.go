@@ -154,7 +154,7 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 			}
 			configLines := []string{
 				fmt.Sprintf("User: %s", username),
-				fmt.Sprintf("Sudo access: ALL commands"),
+				"Sudo access: ALL commands",
 				fmt.Sprintf("Password required: %s", passwordRequired),
 				fmt.Sprintf("Configuration file: %s", sudoersFile),
 			}
@@ -213,7 +213,7 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 			if err := visudoCmd.Run(); err != nil {
 				// Remove invalid file
 				rmCmd := exec.Command("sudo", "rm", sudoersFile)
-				rmCmd.Run() // Ignore errors here
+				_ = rmCmd.Run() // Ignore errors here
 				return fmt.Errorf("invalid sudoers file: %w", err)
 			}
 
@@ -279,7 +279,7 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 				if err := visudoCmd.Run(); err != nil {
 					// Remove invalid file
 					rmCmd := exec.Command("sudo", "rm", sudoersFile)
-					rmCmd.Run() // Ignore errors here
+					_ = rmCmd.Run() // Ignore errors here
 					return fmt.Errorf("invalid sudoers file: %w", err)
 				}
 			}
@@ -568,7 +568,7 @@ func (f *Feature) configureLinuxSudo(ctx *features.ExecutionContext, username st
 	}
 	configLines := []string{
 		fmt.Sprintf("User: %s", username),
-		fmt.Sprintf("Sudo access: ALL commands"),
+		"Sudo access: ALL commands",
 		fmt.Sprintf("Password required: %s", passwordRequired),
 		fmt.Sprintf("Configuration file: %s", sudoersFile),
 	}

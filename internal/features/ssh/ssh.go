@@ -95,7 +95,7 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 			fmt.Println("\nMultiple sources can be separated by semicolons (;)")
 			fmt.Print("Or leave empty to skip: ")
 			var input string
-			fmt.Scanln(&input)
+			_, _ = fmt.Scanln(&input) // Ignore error for user input
 			if input != "" {
 				// parsed input SSH key
 				keyList := strings.Split(input, ";")
@@ -544,8 +544,8 @@ func displaySSHKeySummary(ctx *features.ExecutionContext, keys []*sshkeys.Key, u
 
 	// Create summary lines
 	var summaryLines []string
-	summaryLines = append(summaryLines, fmt.Sprintf("SSH Keys Summary"))
-	summaryLines = append(summaryLines, fmt.Sprintf("---------------"))
+	summaryLines = append(summaryLines, "SSH Keys Summary")
+	summaryLines = append(summaryLines, "---------------")
 	summaryLines = append(summaryLines, fmt.Sprintf("%d keys imported to %s", len(keys), authKeysFile))
 	summaryLines = append(summaryLines, "")
 
