@@ -34,8 +34,8 @@ rm -f "$STATUS_DIR"/*.status "$STATUS_DIR"/*.error "$STATUS_DIR"/*.pid "$STATUS_
 
 # Build all binaries and scripts first
 echo -e "${YELLOW}→ Building all binaries and scripts...${NC}"
-# Make sure bin/scripts directory exists
-mkdir -p bin/scripts
+# Make sure bin directory exists
+mkdir -p bin
 
 # Build scripts first
 echo -e "${YELLOW}  Building scripts...${NC}"
@@ -87,7 +87,7 @@ if [ ! -f bin/devserver ]; then
 fi
 
 # Check if scripts were built
-if [ ! -f bin/scripts/install.sh ] || [ ! -f bin/scripts/iniq.sh ]; then
+if [ ! -f bin/install.sh ]; then
   echo -e "${RED}  Error: Failed to build scripts. Check for build errors.${NC}"
   # Try to build scripts again
   task build:scripts
@@ -192,7 +192,7 @@ else
   echo -e "  • Binary compiled: ${YELLOW}No${NC} (Binary not found)"
 fi
 
-if [ -f bin/scripts/install.sh ] && [ -f bin/scripts/iniq.sh ]; then
+if [ -f bin/install.sh ]; then
   echo -e "  • Scripts compiled: ${GREEN}Yes${NC}"
 else
   echo -e "  • Scripts compiled: ${YELLOW}No${NC} (Scripts not found)"

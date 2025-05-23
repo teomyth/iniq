@@ -68,13 +68,13 @@ update_status() {
     # Run the server and capture its output
     (
         # Add debug output
-        echo -e "${YELLOW}[SERVER DEBUG]${NC} Starting HTTP server with command: ./bin/devserver --port $PORT --scripts scripts --bin bin"
+        echo -e "${YELLOW}[SERVER DEBUG]${NC} Starting HTTP server with command: ./bin/devserver --port $PORT --bin bin"
         echo -e "${YELLOW}[SERVER DEBUG]${NC} Current directory: $(pwd)"
         echo -e "${YELLOW}[SERVER DEBUG]${NC} Binary exists: $([ -f ./bin/devserver ] && echo "Yes" || echo "No")"
 
         # Use the pre-compiled binary with 0.0.0.0 binding for WSL mirror mode
         # This ensures we listen on all interfaces and can detect all available IPs
-        ./bin/devserver --port $PORT --scripts scripts --bin bin 2>&1 |
+        ./bin/devserver --port $PORT --bin bin 2>&1 |
         while IFS= read -r line; do
             # Check if the line indicates server is ready
             if [[ "$line" == *"Starting development server"* || "$line" == *"Server started"* || "$line" == *"Listening"* || "$line" == *"Available on"* ]]; then

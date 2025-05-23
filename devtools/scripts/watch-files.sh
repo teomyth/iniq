@@ -54,10 +54,10 @@ start_watcher() {
         # Make sure the binary directory exists
         mkdir -p bin
 
-        # Start watchexec for scripts
+        # Start watchexec for install.sh in root directory
         (
-            log_with_timestamp "${BLUE}[WATCH]${NC}" "Watching scripts/ directory for changes"
-            watchexec -w scripts/ --verbose --print-events "echo '[SCRIPTS] Rebuilding scripts...' && task build:scripts && echo '[SCRIPTS] Scripts rebuilt successfully'" 2>&1 |
+            log_with_timestamp "${BLUE}[WATCH]${NC}" "Watching install.sh for changes"
+            watchexec -w install.sh --verbose --print-events "echo '[SCRIPTS] Rebuilding scripts...' && task build:scripts && echo '[SCRIPTS] Scripts rebuilt successfully'" 2>&1 |
             while IFS= read -r line; do
                 # Check for errors
                 if [[ "$line" == *"error"* || "$line" == *"Error"* || "$line" == *"ERROR"* ]]; then
@@ -189,7 +189,7 @@ start_watcher() {
                     log_with_timestamp "${YELLOW}[WATCH]${NC}" "File change detected, rebuilding..."
 
                     # Check which files changed and rebuild accordingly
-                    if [ -n "$(find scripts/ -type f -newer "$STATUS_DIR/last_build" 2>/dev/null)" ]; then
+                    if [ install.sh -nt "$STATUS_DIR/last_build" 2>/dev/null ]; then
                         log_with_timestamp "${YELLOW}[WATCH:SCRIPTS]${NC}" "Script changes detected, rebuilding scripts..."
                         task build:scripts
                         if [ $? -eq 0 ]; then
@@ -239,7 +239,7 @@ start_watcher() {
                     log_with_timestamp "${BLUE}[WATCH]${NC}" "Checking for file changes..."
 
                     # Check which files changed and rebuild accordingly
-                    if [ -n "$(find scripts/ -type f -newer "$STATUS_DIR/last_build" 2>/dev/null)" ]; then
+                    if [ install.sh -nt "$STATUS_DIR/last_build" 2>/dev/null ]; then
                         log_with_timestamp "${YELLOW}[WATCH:SCRIPTS]${NC}" "Script changes detected, rebuilding scripts..."
                         task build:scripts
                         if [ $? -eq 0 ]; then

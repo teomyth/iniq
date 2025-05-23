@@ -19,26 +19,16 @@ import (
 func main() {
 	// Parse command line arguments
 	port := flag.Int("port", 8080, "Port to listen on")
-	scriptsDir := flag.String("scripts", "scripts", "Directory containing scripts")
 	binDir := flag.String("bin", "bin", "Directory containing binaries")
 	flag.Parse()
 
 	// Resolve absolute paths
-	absScriptsDir, err := filepath.Abs(*scriptsDir)
-	if err != nil {
-		log.Fatalf("Failed to resolve scripts directory: %v", err)
-	}
-
 	absBinDir, err := filepath.Abs(*binDir)
 	if err != nil {
 		log.Fatalf("Failed to resolve bin directory: %v", err)
 	}
 
 	// Check if directories exist
-	if _, err := os.Stat(absScriptsDir); os.IsNotExist(err) {
-		log.Fatalf("Scripts directory does not exist: %s", absScriptsDir)
-	}
-
 	if _, err := os.Stat(absBinDir); os.IsNotExist(err) {
 		log.Printf("Bin directory does not exist: %s. Creating it...", absBinDir)
 		if err := os.MkdirAll(absBinDir, 0755); err != nil {
@@ -47,40 +37,13 @@ func main() {
 	}
 
 	// Ensure scripts are built
-	binScriptsDir := filepath.Join(absBinDir, "scripts")
-	if _, err := os.Stat(binScriptsDir); os.IsNotExist(err) {
-		log.Printf("Warning: bin/scripts directory not found. Run 'task build:scripts' first.")
-	} else {
-		if _, err := os.Stat(filepath.Join(binScriptsDir, "install.sh")); os.IsNotExist(err) {
-			log.Printf("Warning: install.sh not found in bin/scripts directory. Run 'task build:scripts' first.")
-		}
-
-		if _, err := os.Stat(filepath.Join(binScriptsDir, "iniq.sh")); os.IsNotExist(err) {
-			log.Printf("Warning: iniq.sh not found in bin/scripts directory. Run 'task build:scripts' first.")
-		}
+	if _, err := os.Stat(filepath.Join(absBinDir, "install.sh")); os.IsNotExist(err) {
+		log.Printf("Warning: install.sh not found in bin directory. Run 'task build:scripts' first.")
 	}
 
 	// Set up HTTP routes
 	http.HandleFunc("/install.sh", func(w http.ResponseWriter, r *http.Request) {
-		serveScriptWithDynamicValues(w, r, filepath.Join(binScriptsDir, "install.sh"))
-	})
-
-	http.HandleFunc("/iniq.sh", func(w http.ResponseWriter, r *http.Request) {
-		serveScriptWithDynamicValues(w, r, filepath.Join(binScriptsDir, "iniq.sh"))
-	})
-
-	// Add route for common.sh (for backward compatibility)
-	http.HandleFunc("/common.sh", func(w http.ResponseWriter, r *http.Request) {
-		// Serve the common.sh file directly from scripts directory
-		commonPath := filepath.Join(absScriptsDir, "common.sh")
-		if _, err := os.Stat(commonPath); os.IsNotExist(err) {
-			log.Printf("common.sh not found: %s", commonPath)
-			http.Error(w, "common.sh not found", http.StatusNotFound)
-			return
-		}
-
-		// Serve with dynamic values
-		serveScriptWithDynamicValues(w, r, commonPath)
+		serveScriptWithDynamicValues(w, r, filepath.Join(*binDir, "install.sh"))
 	})
 
 	// Handle binary downloads and static files
@@ -211,7 +174,6 @@ func main() {
 	// Start server
 	addr := fmt.Sprintf("0.0.0.0:%d", *port)
 	log.Printf("Starting development server on %s", addr)
-	log.Printf("Scripts directory: %s", absScriptsDir)
 	log.Printf("Bin directory: %s", absBinDir)
 
 	// Print all available IP addresses
