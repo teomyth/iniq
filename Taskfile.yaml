@@ -88,17 +88,8 @@ tasks:
     summary: Installs Go-based development tools, watchexec, and GoReleaser
     cmds:
       - echo "📦 Installing Go development tools..."
-      - |
-        # Check if GOPATH/bin is in PATH
-        GOPATH=$(go env GOPATH)
-        if [[ ":$PATH:" != *":$GOPATH/bin:"* ]]; then
-          echo "⚠️ GOPATH/bin is not in your PATH. Adding it temporarily for this session."
-          export PATH="$GOPATH/bin:$PATH"
-
-          # Suggest adding to shell profile
-          echo "💡 To make this permanent, add the following line to your ~/.bashrc or ~/.zshrc:"
-          echo "   export PATH=\"\$GOPATH/bin:\$PATH\""
-        fi
+      - chmod +x ./devtools/scripts/setup-go-path.sh
+      - ./devtools/scripts/setup-go-path.sh
       - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
       - task: tools:install:watchexec
       - task: tools:install:goreleaser
