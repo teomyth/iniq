@@ -15,6 +15,7 @@ NC='\033[0m' # No Color
 
 # Default values
 DEFAULT_DOWNLOAD_BASE_URL="https://github.com/teomyth/iniq/releases/latest/download"
+GITHUB_API_URL="https://api.github.com/repos/teomyth/iniq/releases/latest"
 
 # Print banner
 print_banner() {
@@ -47,15 +48,72 @@ detect_platform() {
         i386)    ARCH="386" ;;
     esac
 
+    # Check if platform is supported
+    if [[ "$OS" != "linux" ]]; then
+        echo -e "${RED}×${NC} Unsupported operating system: ${BOLD}$OS${NC}" >&2
+        echo -e "${YELLOW}!${NC} INIQ currently only supports Linux." >&2
+        echo -e "${YELLOW}!${NC} Supported platforms: linux-amd64, linux-arm64" >&2
+        return 1
+    fi
+
+    if [[ "$ARCH" != "amd64" && "$ARCH" != "arm64" ]]; then
+        echo -e "${RED}×${NC} Unsupported architecture: ${BOLD}$ARCH${NC}" >&2
+        echo -e "${YELLOW}!${NC} Supported architectures: amd64, arm64" >&2
+        return 1
+    fi
+
     # Export variables
     export OS
     export ARCH
+}
+
+# Get latest version from GitHub API
+get_latest_version() {
+    local download_tool=$(check_download_tools)
+    local version=""
+
+    case "$download_tool" in
+        curl)
+            version=$(curl -s "$GITHUB_API_URL" | grep '"tag_name":' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+            ;;
+        wget)
+            version=$(wget -qO- "$GITHUB_API_URL" | grep '"tag_name":' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    if [[ -n "$version" && "$version" != "null" ]]; then
+        echo "$version"
+        return 0
+    else
+        return 1
+    fi
 }
 
 # Get download URL based on platform
 get_download_url() {
     local base_url="${1:-$DEFAULT_DOWNLOAD_BASE_URL}"
     echo "${base_url}/iniq-${OS}-${ARCH}.tar.gz"
+}
+
+# Get download URL with version fallback
+get_download_url_with_fallback() {
+    local base_url="${1:-$DEFAULT_DOWNLOAD_BASE_URL}"
+
+    # First try to get the latest version from API
+    echo -e "${BLUE}→${NC} Checking latest version from GitHub API..." >&2
+    local latest_version=$(get_latest_version)
+
+    if [[ -n "$latest_version" ]]; then
+        echo -e "${BLUE}→${NC} Found latest version: ${BOLD}$latest_version${NC}" >&2
+        local versioned_url="https://github.com/teomyth/iniq/releases/download/${latest_version}/iniq-${OS}-${ARCH}.tar.gz"
+        echo "$versioned_url"
+    else
+        echo -e "${YELLOW}→${NC} Could not get version from API, using latest URL" >&2
+        echo "${base_url}/iniq-${OS}-${ARCH}.tar.gz"
+    fi
 }
 
 # Check for download tools
@@ -107,7 +165,7 @@ download_file() {
     return 1
 }
 
-# Download binary
+# Download binary with fallback
 download_binary() {
     local download_url="$1"
     local output_file="${2:-iniq}"
@@ -117,49 +175,83 @@ download_binary() {
     local extract_dir="${output_file}.extract"
 
     echo -e "${BLUE}→${NC} Downloading INIQ binary..."
+
+    # First attempt with provided URL
     if download_file "$download_url" "$temp_output_file"; then
         # Verify the downloaded file is a valid gzip archive
-        if ! file "$temp_output_file" | grep -q "gzip compressed"; then
-            echo -e "${RED}×${NC} Downloaded file is not a valid gzip archive" >&2
-            echo -e "${YELLOW}!${NC} This might be a GitHub redirect issue. Try using a specific version URL." >&2
+        if file "$temp_output_file" | grep -q "gzip compressed"; then
+            echo -e "${GREEN}✓${NC} Downloaded valid archive"
+        else
+            echo -e "${YELLOW}!${NC} Downloaded file is not a valid gzip archive, trying fallback..."
             rm -f "$temp_output_file"
-            return 1
-        fi
 
-        # Create extraction directory
-        mkdir -p "$extract_dir"
-
-        # Extract tar.gz file
-        echo -e "${BLUE}→${NC} Extracting archive..."
-        if tar -xzf "$temp_output_file" -C "$extract_dir"; then
-            # Find the binary in the extracted directory
-            local binary_path=$(find "$extract_dir" -name "iniq" -type f)
-
-            if [[ -n "$binary_path" ]]; then
-                echo -e "${GREEN}✓${NC} Archive extracted successfully"
-                # Copy the binary to the output location
-                cp "$binary_path" "$output_file"
-                chmod +x "$output_file"
+            # Try to get versioned URL as fallback
+            local fallback_url=$(get_download_url_with_fallback)
+            if [[ "$fallback_url" != "$download_url" ]]; then
+                echo -e "${BLUE}→${NC} Trying fallback URL..."
+                if download_file "$fallback_url" "$temp_output_file"; then
+                    if ! file "$temp_output_file" | grep -q "gzip compressed"; then
+                        echo -e "${RED}×${NC} Fallback download also failed - not a valid gzip archive" >&2
+                        rm -f "$temp_output_file"
+                        return 1
+                    fi
+                    echo -e "${GREEN}✓${NC} Fallback download successful"
+                else
+                    echo -e "${RED}×${NC} Fallback download failed" >&2
+                    return 1
+                fi
             else
-                echo -e "${RED}×${NC} Binary not found in extracted archive" >&2
-                rm -rf "$extract_dir" "$temp_output_file"
+                echo -e "${RED}×${NC} No fallback URL available" >&2
                 return 1
             fi
+        fi
+    else
+        echo -e "${YELLOW}!${NC} Initial download failed, trying fallback..."
+
+        # Try to get versioned URL as fallback
+        local fallback_url=$(get_download_url_with_fallback)
+        if [[ "$fallback_url" != "$download_url" ]]; then
+            echo -e "${BLUE}→${NC} Trying fallback URL..."
+            if ! download_file "$fallback_url" "$temp_output_file"; then
+                echo -e "${RED}×${NC} Fallback download also failed" >&2
+                return 1
+            fi
+            echo -e "${GREEN}✓${NC} Fallback download successful"
         else
-            echo -e "${RED}×${NC} Failed to extract archive" >&2
-            rm -f "$temp_output_file"
+            echo -e "${RED}×${NC} Download failed and no fallback URL available" >&2
             return 1
         fi
+    fi
 
-        # Clean up extraction directory and temp file
-        rm -rf "$extract_dir" "$temp_output_file"
-        echo -e "${GREEN}✓${NC} Download completed successfully"
-        return 0
+    # Create extraction directory
+    mkdir -p "$extract_dir"
+
+    # Extract tar.gz file
+    echo -e "${BLUE}→${NC} Extracting archive..."
+    if tar -xzf "$temp_output_file" -C "$extract_dir"; then
+        # Find the binary in the extracted directory
+        local binary_path=$(find "$extract_dir" -name "iniq" -type f)
+
+        if [[ -n "$binary_path" ]]; then
+            echo -e "${GREEN}✓${NC} Archive extracted successfully"
+            # Copy the binary to the output location
+            cp "$binary_path" "$output_file"
+            chmod +x "$output_file"
+        else
+            echo -e "${RED}×${NC} Binary not found in extracted archive" >&2
+            rm -rf "$extract_dir" "$temp_output_file"
+            return 1
+        fi
     else
-        echo -e "${RED}×${NC} Failed to download INIQ binary" >&2
+        echo -e "${RED}×${NC} Failed to extract archive" >&2
         rm -f "$temp_output_file"
         return 1
     fi
+
+    # Clean up extraction directory and temp file
+    rm -rf "$extract_dir" "$temp_output_file"
+    echo -e "${GREEN}✓${NC} Download completed successfully"
+    return 0
 }
 
 # Install binary to system path
@@ -204,7 +296,9 @@ create_temp_dir() {
 
 # Initialize script
 init_script() {
-    detect_platform
+    if ! detect_platform; then
+        exit 1
+    fi
 }
 
 # Main installation function
@@ -218,8 +312,8 @@ install_iniq() {
     trap 'cleanup "${TEMP_DIR}"' EXIT
     echo -e "${BLUE}→${NC} Created temporary directory"
 
-    # Get download URL
-    DOWNLOAD_URL=$(get_download_url)
+    # Get download URL with fallback support
+    DOWNLOAD_URL=$(get_download_url_with_fallback)
     echo -e "${BLUE}→${NC} Detected platform: ${BOLD}$OS-$ARCH${NC}"
 
     # Define install path

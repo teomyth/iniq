@@ -25,9 +25,9 @@ fi
 echo -e "${BLUE}Installing svu (Semantic Version Util)...${NC}"
 
 # Install svu
-if go install github.com/caarlos0/svu/v2/cmd/svu@latest; then
+if go install github.com/caarlos0/svu@latest; then
     echo -e "${GREEN}✅ svu installed successfully.${NC}"
-    
+
     # Check if GOPATH/bin is in PATH
     GOPATH=$(go env GOPATH)
     if [[ ":$PATH:" != *":$GOPATH/bin:"* ]]; then
@@ -36,7 +36,7 @@ if go install github.com/caarlos0/svu/v2/cmd/svu@latest; then
         echo -e "  export PATH=\"\$GOPATH/bin:\$PATH\""
         echo -e "You can add this line to your ~/.bashrc or ~/.zshrc file."
     fi
-    
+
     # Verify installation
     if command -v svu &> /dev/null; then
         echo -e "${GREEN}svu is now available:${NC}"

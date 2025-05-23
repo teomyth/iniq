@@ -78,6 +78,7 @@ tasks:
       - Builds initial binary
     cmds:
       - task: tools:install
+      - task: version:install-svu
       - task: deps
       - task: build
       - echo "✅ Development environment setup complete!"
