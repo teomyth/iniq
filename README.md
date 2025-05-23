@@ -1,6 +1,14 @@
 # INIQ
 
-INIQ (pronounced "in-ick") is a cross-platform command-line tool for Linux system initialization. It streamlines the process of setting up new systems with proper user accounts, SSH access, and security configurations.
+INIQ (pronounced "in-ick") is a command-line tool for Linux system initialization. It streamlines the process of setting up new systems with proper user accounts, SSH access, and security configurations.
+
+## Platform Support
+
+INIQ officially supports **Linux only** for production use:
+- Linux AMD64
+- Linux ARM64
+
+> **Note**: While INIQ can be built and tested on macOS for development purposes, it is designed specifically for Linux servers and is not supported for production use on macOS.
 
 ## Features
 
@@ -11,7 +19,6 @@ INIQ (pronounced "in-ick") is a cross-platform command-line tool for Linux syste
 - **System Status**: Check current system configuration without making changes
 - **Backup Feature**: Automatically create timestamped backups of configuration files
 - **Password Management**: Set passwords for users interactively
-- **Cross-Platform**: Works on Linux
 - **Interactive Mode**: Guided setup with sensible defaults
 - **Non-Interactive Mode**: Suitable for scripting and automation
 - **Configuration Files**: Support for YAML configuration files

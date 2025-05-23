@@ -94,16 +94,105 @@ Go version, and platform information.`,
 				fmt.Println("\nBuild Settings:")
 			}
 
+			// Collect and display relevant build settings
+			buildSettings := make(map[string]string)
 			for _, setting := range info.BuildInfo.Settings {
-				if setting.Key == "vcs.modified" && setting.Value == "true" {
+				buildSettings[setting.Key] = setting.Value
+			}
+
+			// Display CGO status
+			if cgoEnabled, exists := buildSettings["CGO_ENABLED"]; exists {
+				status := "Enabled"
+				if cgoEnabled == "0" {
+					status = "Disabled"
+				}
+				if useColors {
+					fmt.Printf("  %s CGO: %s\n", utils.ColorText("•", utils.ColorInfo), status)
+				} else {
+					fmt.Printf("  • CGO: %s\n", status)
+				}
+			} else {
+				// For local builds, CGO is typically enabled by default
+				if useColors {
+					fmt.Printf("  %s CGO: %s\n", utils.ColorText("•", utils.ColorInfo), "Enabled (default)")
+				} else {
+					fmt.Printf("  • CGO: %s\n", "Enabled (default)")
+				}
+			}
+
+			// Display VCS information
+			if vcsRevision, exists := buildSettings["vcs.revision"]; exists {
+				if useColors {
+					fmt.Printf("  %s VCS Revision: %s\n", utils.ColorText("•", utils.ColorInfo), vcsRevision[:min(len(vcsRevision), 12)])
+				} else {
+					fmt.Printf("  • VCS Revision: %s\n", vcsRevision[:min(len(vcsRevision), 12)])
+				}
+			}
+
+			if vcsTime, exists := buildSettings["vcs.time"]; exists {
+				if useColors {
+					fmt.Printf("  %s VCS Time: %s\n", utils.ColorText("•", utils.ColorInfo), vcsTime)
+				} else {
+					fmt.Printf("  • VCS Time: %s\n", vcsTime)
+				}
+			}
+
+			if vcsModified, exists := buildSettings["vcs.modified"]; exists && vcsModified == "true" {
+				if useColors {
+					fmt.Printf("  %s %s\n",
+						utils.ColorText("•", utils.ColorWarning),
+						"Built from modified source (dirty state)")
+				} else {
+					fmt.Println("  • Built from modified source (dirty state)")
+				}
+			}
+
+			// Display compiler information
+			if compiler, exists := buildSettings["GOARCH"]; exists {
+				if useColors {
+					fmt.Printf("  %s Target Architecture: %s\n", utils.ColorText("•", utils.ColorInfo), compiler)
+				} else {
+					fmt.Printf("  • Target Architecture: %s\n", compiler)
+				}
+			}
+
+			if goos, exists := buildSettings["GOOS"]; exists {
+				if useColors {
+					fmt.Printf("  %s Target OS: %s\n", utils.ColorText("•", utils.ColorInfo), goos)
+				} else {
+					fmt.Printf("  • Target OS: %s\n", goos)
+				}
+			}
+
+			// Display build mode if available
+			if buildMode, exists := buildSettings["-buildmode"]; exists {
+				if useColors {
+					fmt.Printf("  %s Build Mode: %s\n", utils.ColorText("•", utils.ColorInfo), buildMode)
+				} else {
+					fmt.Printf("  • Build Mode: %s\n", buildMode)
+				}
+			}
+
+			// Display if this is a stripped binary
+			if ldflags, exists := buildSettings["-ldflags"]; exists {
+				if strings.Contains(ldflags, "-s") && strings.Contains(ldflags, "-w") {
 					if useColors {
-						fmt.Printf("  %s %s\n",
-							utils.ColorText("•", utils.ColorWarning),
-							"Built from modified source (dirty state)")
+						fmt.Printf("  %s %s\n", utils.ColorText("•", utils.ColorInfo), "Stripped binary (debug info removed)")
 					} else {
-						fmt.Println("  • Built from modified source (dirty state)")
+						fmt.Println("  • Stripped binary (debug info removed)")
 					}
 				}
+			}
+
+			// Display build type based on version
+			buildType := "Development"
+			if !strings.Contains(info.Version, "dirty") && !strings.Contains(info.Version, "dev") {
+				buildType = "Release"
+			}
+			if useColors {
+				fmt.Printf("  %s Build Type: %s\n", utils.ColorText("•", utils.ColorInfo), buildType)
+			} else {
+				fmt.Printf("  • Build Type: %s\n", buildType)
 			}
 		}
 	},

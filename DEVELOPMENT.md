@@ -2,6 +2,24 @@
 
 This document provides detailed information for developers who want to contribute to the INIQ project.
 
+## Platform Support
+
+### Production Support
+INIQ officially supports **Linux only** for production use:
+- Linux AMD64
+- Linux ARM64
+
+### Development Support
+For development and testing purposes, INIQ can be built and run on:
+- **Linux** (primary development platform)
+- **macOS** (development and testing only)
+
+**Important Notes:**
+- macOS support is **experimental** and intended **only for development/testing**
+- Production releases only include Linux binaries
+- macOS binaries are built separately for development purposes
+- When developing on macOS, you can build and test locally, but production deployments must use Linux
+
 ## Development Setup
 
 ### Prerequisites
@@ -109,7 +127,12 @@ task dev
 
 # Build binaries
 task build                # Build for current platform
-task build:all            # Build for all supported platforms
+task build:all            # Build for all platforms (development only)
+task build:production     # Build for production platforms (Linux only)
+task build:linux-amd64    # Build for Linux AMD64
+task build:linux-arm64    # Build for Linux ARM64
+task build:darwin-amd64   # Build for macOS AMD64 (development only)
+task build:darwin-arm64   # Build for macOS ARM64 (development only)
 
 # Testing
 task test                 # Run tests
@@ -234,15 +257,29 @@ task test:race
 
 #### Build Workflow
 
-The build workflow supports multiple platforms:
+The build workflow supports multiple platforms with different purposes:
 
 ```bash
-# Build for current platform
+# Build for current platform (development)
 task build
 
-# Build for all supported platforms
+# Build for all platforms (development only - includes macOS)
 task build:all
+
+# Build for production platforms (Linux only)
+task build:production
+
+# Build for specific platforms
+task build:linux-amd64    # Production supported
+task build:linux-arm64    # Production supported
+task build:darwin-amd64   # Development only
+task build:darwin-arm64   # Development only
 ```
+
+**Platform Support Notes:**
+- **Production builds**: Use `task build:production` or `task goreleaser:build` for Linux-only builds
+- **Development builds**: Use `task build:all` to include macOS binaries for local testing
+- **GoReleaser**: Only builds Linux binaries for production releases
 
 ### Version Management
 

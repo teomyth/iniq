@@ -3,8 +3,6 @@ package main
 import (
 	"archive/tar"
 	"compress/gzip"
-	"crypto/sha256"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -57,8 +55,6 @@ func main() {
 
 			// Check if this is a tar.gz request
 			isTarGzRequest := strings.HasSuffix(requestedName, ".tar.gz")
-			// Check if this is a hash file request
-			isHashRequest := strings.HasSuffix(requestedName, ".sha256")
 
 			// Only log the binary request, not the full directory listing
 			log.Printf("Binary download request: %s", r.URL.Path)
@@ -67,10 +63,6 @@ func main() {
 			if isTarGzRequest {
 				// For tar.gz requests, get the binary name without .tar.gz extension
 				baseBinaryName = strings.TrimSuffix(requestedName, ".tar.gz")
-				baseBinaryPath = filepath.Join(absBinDir, baseBinaryName)
-			} else if isHashRequest {
-				// For hash requests, get the binary name without .sha256 extension
-				baseBinaryName = strings.TrimSuffix(requestedName, ".sha256")
 				baseBinaryPath = filepath.Join(absBinDir, baseBinaryName)
 			} else {
 				// Direct binary request
@@ -110,9 +102,9 @@ func main() {
 
 				// Create tar header
 				header := &tar.Header{
-					Name: "iniq",  // Always name the binary "iniq" inside the archive
-					Mode: 0755,
-					Size: fileInfo.Size(),
+					Name:    "iniq", // Always name the binary "iniq" inside the archive
+					Mode:    0755,
+					Size:    fileInfo.Size(),
 					ModTime: fileInfo.ModTime(),
 				}
 
@@ -139,23 +131,6 @@ func main() {
 				}
 
 				log.Printf("Successfully served tar.gz: %s", requestedName)
-				return
-			} else if isHashRequest {
-				// Generate hash on-the-fly
-				log.Printf("Generating hash for: %s", baseBinaryPath)
-				hash, err := calculateSHA256(baseBinaryPath)
-				if err != nil {
-					log.Printf("Error calculating hash: %v", err)
-					http.Error(w, "Error calculating hash", http.StatusInternalServerError)
-					return
-				}
-
-				// Format hash file content (hash + filename)
-				hashContent := fmt.Sprintf("%s  %s\n", hash, baseBinaryName)
-
-				// Serve the generated hash
-				w.Header().Set("Content-Type", "text/plain")
-				_, _ = w.Write([]byte(hashContent))
 				return
 			} else {
 				// Serve direct binary file
@@ -281,30 +256,6 @@ func serveScriptWithDynamicValues(w http.ResponseWriter, r *http.Request, script
 	// Set content type and return script
 	w.Header().Set("Content-Type", "text/plain")
 	_, _ = io.WriteString(w, modifiedContent)
-}
-
-// Calculate SHA-256 hash of a file
-func calculateSHA256(filePath string) (string, error) {
-	// Open the file
-	file, err := os.Open(filePath)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	// Create a new SHA-256 hash
-	hash := sha256.New()
-
-	// Copy file content to hash
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
-	}
-
-	// Get the hash sum as a hex string
-	hashSum := hash.Sum(nil)
-	hashString := hex.EncodeToString(hashSum)
-
-	return hashString, nil
 }
 
 // Print all available IP addresses

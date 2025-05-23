@@ -110,17 +110,30 @@ start_watcher() {
                     fi
 
                     # Verify the binaries were actually built
-                    PLATFORMS=("linux-amd64" "linux-arm64" "darwin-amd64" "darwin-arm64")
+                    # Note: GoReleaser only builds Linux binaries, macOS binaries are for development only
+                    LINUX_PLATFORMS=("linux-amd64" "linux-arm64")
+                    MACOS_PLATFORMS=("darwin-amd64" "darwin-arm64")
                     ALL_BUILT=true
                     MISSING_PLATFORMS=""
 
-                    for platform in "${PLATFORMS[@]}"; do
+                    # Check Linux binaries (should always be built by GoReleaser)
+                    for platform in "${LINUX_PLATFORMS[@]}"; do
                         if [ -f "bin/iniq-${platform}" ]; then
                             BINARY_TIME=$(stat -c %y "bin/iniq-${platform}" 2>/dev/null || stat -f "%m" "bin/iniq-${platform}" 2>/dev/null)
                             log_with_timestamp "${GREEN}[WATCH:GO]${NC}" "Binary for ${platform} successfully built (${BINARY_TIME})"
                         else
                             ALL_BUILT=false
                             MISSING_PLATFORMS="${MISSING_PLATFORMS} ${platform}"
+                        fi
+                    done
+
+                    # Check macOS binaries (development only - may not exist from GoReleaser)
+                    for platform in "${MACOS_PLATFORMS[@]}"; do
+                        if [ -f "bin/iniq-${platform}" ]; then
+                            BINARY_TIME=$(stat -c %y "bin/iniq-${platform}" 2>/dev/null || stat -f "%m" "bin/iniq-${platform}" 2>/dev/null)
+                            log_with_timestamp "${GREEN}[WATCH:GO]${NC}" "Binary for ${platform} available (development only) (${BINARY_TIME})"
+                        else
+                            log_with_timestamp "${YELLOW}[WATCH:GO]${NC}" "Binary for ${platform} not available (development only - run 'task build:${platform}' to build)"
                         fi
                     done
 

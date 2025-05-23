@@ -181,17 +181,28 @@ tasks:
       - echo "✅ Development HTTP server and iniq binary built successfully!"
 
   build:all:
-    desc: Build binaries for all supported platforms
+    desc: Build binaries for all platforms (development only)
     summary: |
-      Legacy build task that builds binaries for all platforms.
-      For new development, consider using 'task goreleaser:build' instead,
-      which uses GoReleaser to build binaries with consistent settings.
-      This task is kept for backward compatibility.
+      Development build task that builds binaries for all platforms.
+      Note: macOS builds are for development/testing only.
+      Production releases only support Linux (see GoReleaser configuration).
+      For production builds, use 'task build:production' or 'task goreleaser:build' instead.
     cmds:
       - task: build:linux-amd64
       - task: build:linux-arm64
       - task: build:darwin-amd64
       - task: build:darwin-arm64
+      - task: build:hashes
+
+  build:production:
+    desc: Build binaries for production (Linux only)
+    summary: |
+      Production build task that builds binaries for supported platforms only.
+      This matches the GoReleaser configuration and production release targets.
+      Only builds Linux binaries as macOS is not supported in production.
+    cmds:
+      - task: build:linux-amd64
+      - task: build:linux-arm64
       - task: build:hashes
 
   build:linux-amd64:
@@ -225,7 +236,10 @@ tasks:
         echo "✅ Built Linux ARM64 binary with version: ${VERSION}"
 
   build:darwin-amd64:
-    desc: Build binary for macOS AMD64
+    desc: Build binary for macOS AMD64 (development only)
+    summary: |
+      Builds macOS AMD64 binary for development and testing purposes.
+      Note: macOS is not supported in production releases.
     cmds:
       - mkdir -p bin
       - |
@@ -237,10 +251,13 @@ tasks:
         # Build with version information
         GOOS=darwin GOARCH=amd64 go build -ldflags "-X 'github.com/teomyth/iniq/internal/version.version=${VERSION}' -X 'github.com/teomyth/iniq/internal/version.buildDate=${BUILD_DATE}' -X 'github.com/teomyth/iniq/internal/version.commit=${COMMIT}'" -o bin/iniq-darwin-amd64 cmd/iniq/main.go
 
-        echo "✅ Built macOS AMD64 binary with version: ${VERSION}"
+        echo "✅ Built macOS AMD64 binary with version: ${VERSION} (development only)"
 
   build:darwin-arm64:
-    desc: Build binary for macOS ARM64
+    desc: Build binary for macOS ARM64 (development only)
+    summary: |
+      Builds macOS ARM64 binary for development and testing purposes.
+      Note: macOS is not supported in production releases.
     cmds:
       - mkdir -p bin
       - |
@@ -252,7 +269,7 @@ tasks:
         # Build with version information
         GOOS=darwin GOARCH=arm64 go build -ldflags "-X 'github.com/teomyth/iniq/internal/version.version=${VERSION}' -X 'github.com/teomyth/iniq/internal/version.buildDate=${BUILD_DATE}' -X 'github.com/teomyth/iniq/internal/version.commit=${COMMIT}'" -o bin/iniq-darwin-arm64 cmd/iniq/main.go
 
-        echo "✅ Built macOS ARM64 binary with version: ${VERSION}"
+        echo "✅ Built macOS ARM64 binary with version: ${VERSION} (development only)"
 
   build:hashes:
     desc: Generate SHA-256 hash files for all binaries
