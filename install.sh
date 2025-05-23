@@ -14,7 +14,7 @@ BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 # Default values
-DEFAULT_DOWNLOAD_BASE_URL="https://github.com/teomyth/iniq/releases/download/latest"
+DEFAULT_DOWNLOAD_BASE_URL="https://github.com/teomyth/iniq/releases/latest/download"
 
 # Print banner
 print_banner() {
@@ -72,25 +72,39 @@ check_download_tools() {
     fi
 }
 
-# Download file using available tool
+# Download file using available tool with retry
 download_file() {
     local url="$1"
     local output_file="$2"
     local download_tool=$(check_download_tools)
+    local max_retries=3
+    local retry_count=0
 
-    case "$download_tool" in
-        curl)
-            curl -L "$url" -o "$output_file"
-            ;;
-        wget)
-            wget -O "$output_file" "$url"
-            ;;
-        *)
-            return 1
-            ;;
-    esac
+    while [ $retry_count -lt $max_retries ]; do
+        case "$download_tool" in
+            curl)
+                if curl -L --fail "$url" -o "$output_file"; then
+                    return 0
+                fi
+                ;;
+            wget)
+                if wget -O "$output_file" "$url"; then
+                    return 0
+                fi
+                ;;
+            *)
+                return 1
+                ;;
+        esac
 
-    return $?
+        retry_count=$((retry_count + 1))
+        if [ $retry_count -lt $max_retries ]; then
+            echo -e "${YELLOW}→${NC} Download failed, retrying ($retry_count/$max_retries)..."
+            sleep 2
+        fi
+    done
+
+    return 1
 }
 
 # Download binary
@@ -104,15 +118,23 @@ download_binary() {
 
     echo -e "${BLUE}→${NC} Downloading INIQ binary..."
     if download_file "$download_url" "$temp_output_file"; then
+        # Verify the downloaded file is a valid gzip archive
+        if ! file "$temp_output_file" | grep -q "gzip compressed"; then
+            echo -e "${RED}×${NC} Downloaded file is not a valid gzip archive" >&2
+            echo -e "${YELLOW}!${NC} This might be a GitHub redirect issue. Try using a specific version URL." >&2
+            rm -f "$temp_output_file"
+            return 1
+        fi
+
         # Create extraction directory
         mkdir -p "$extract_dir"
-        
+
         # Extract tar.gz file
         echo -e "${BLUE}→${NC} Extracting archive..."
         if tar -xzf "$temp_output_file" -C "$extract_dir"; then
             # Find the binary in the extracted directory
             local binary_path=$(find "$extract_dir" -name "iniq" -type f)
-            
+
             if [[ -n "$binary_path" ]]; then
                 echo -e "${GREEN}✓${NC} Archive extracted successfully"
                 # Copy the binary to the output location
