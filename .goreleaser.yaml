@@ -66,8 +66,7 @@ release:
   name_template: "INIQ {{.Version}}"
   draft: false
   prerelease: auto
-  extra_files:
-    - glob: install.sh
+
   header: |
     # INIQ {{.Version}}
   footer: |
@@ -76,7 +75,7 @@ release:
     ### Option 1: Using the install script (Recommended)
 
     ```bash
-    curl -L https://github.com/teomyth/iniq/releases/download/{{.Tag}}/install.sh | sudo bash
+    curl -L https://raw.githubusercontent.com/teomyth/iniq/main/install.sh | sudo bash
     ```
 
     ### Option 2: Manual installation

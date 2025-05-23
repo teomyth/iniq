@@ -32,13 +32,13 @@ INIQ officially supports **Linux only** for production use:
 Install INIQ globally using curl:
 
 ```bash
-curl -L https://github.com/teomyth/iniq/releases/latest/download/install.sh | sudo bash
+curl -L https://raw.githubusercontent.com/teomyth/iniq/main/install.sh | sudo bash
 ```
 
 Or using wget:
 
 ```bash
-wget -qO- https://github.com/teomyth/iniq/releases/latest/download/install.sh | sudo bash
+wget -qO- https://raw.githubusercontent.com/teomyth/iniq/main/install.sh | sudo bash
 ```
 
 #### Option 2: Manual installation
@@ -84,13 +84,13 @@ sudo mv iniq /usr/local/bin/
 Install INIQ and run immediately using curl:
 
 ```bash
-curl -L https://github.com/teomyth/iniq/releases/latest/download/install.sh | sudo bash && sudo iniq
+curl -L https://raw.githubusercontent.com/teomyth/iniq/main/install.sh | sudo bash && sudo iniq
 ```
 
 Or using wget:
 
 ```bash
-wget -qO- https://github.com/teomyth/iniq/releases/latest/download/install.sh | sudo bash && sudo iniq
+wget -qO- https://raw.githubusercontent.com/teomyth/iniq/main/install.sh | sudo bash && sudo iniq
 ```
 
 > **Important**: INIQ requires sudo privileges for full functionality. The script will automatically request elevated privileges when needed. If you prefer to run with sudo directly, see the "Advanced Usage" section below.
@@ -156,9 +156,27 @@ INIQ requires sudo privileges for most of its functionality, including:
 
 ### Adding a User to Sudo Group
 
-If your user doesn't have sudo privileges, you can add it to the sudo group with one of these methods:
+If your user doesn't have sudo privileges, you can add it to the sudo group. Try these methods in order:
 
-#### As Current User (Using `su`)
+#### Method 1: Using sudo (Recommended)
+
+If you have basic sudo access, this is the preferred method:
+
+On Debian/Ubuntu:
+
+```bash
+sudo usermod -aG sudo $(whoami)
+```
+
+On CentOS/RHEL/Fedora:
+
+```bash
+sudo usermod -aG wheel $(whoami)
+```
+
+#### Method 2: Using su (If sudo fails)
+
+If the above method fails, try using su:
 
 On Debian/Ubuntu:
 
@@ -172,19 +190,27 @@ On CentOS/RHEL/Fedora:
 su -c "/usr/sbin/usermod -aG wheel $(whoami)"
 ```
 
-#### As Root User (After Switching to Root)
+#### Method 3: Recovery Mode (If both methods fail)
+
+If both methods fail (common on fresh OS installations):
+
+1. Restart your system
+2. At the GRUB boot menu, select "Advanced options"
+3. Choose "Recovery mode"
+4. Select "root" to get a root shell
+5. Run the appropriate command:
 
 On Debian/Ubuntu:
-
 ```bash
-/usr/sbin/usermod -aG sudo USERNAME
+usermod -aG sudo USERNAME
 ```
 
 On CentOS/RHEL/Fedora:
-
 ```bash
-/usr/sbin/usermod -aG wheel USERNAME
+usermod -aG wheel USERNAME
 ```
+
+6. Exit and resume normal boot
 
 > **Note**: Replace `USERNAME` with your actual username.
 >
