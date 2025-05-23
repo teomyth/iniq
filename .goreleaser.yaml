@@ -73,7 +73,7 @@ release:
 
     ### Linux (AMD64)
     ```bash
-    curl -L https://github.com/teomyth/iniq/releases/download/{{.Version}}/iniq-linux-amd64.tar.gz -o iniq.tar.gz
+    curl -L https://github.com/teomyth/iniq/releases/download/{{.Tag}}/iniq-linux-amd64.tar.gz -o iniq.tar.gz
     tar -xzf iniq.tar.gz
     chmod +x iniq
     sudo mv iniq /usr/local/bin/
@@ -81,7 +81,7 @@ release:
 
     ### Linux (ARM64)
     ```bash
-    curl -L https://github.com/teomyth/iniq/releases/download/{{.Version}}/iniq-linux-arm64.tar.gz -o iniq.tar.gz
+    curl -L https://github.com/teomyth/iniq/releases/download/{{.Tag}}/iniq-linux-arm64.tar.gz -o iniq.tar.gz
     tar -xzf iniq.tar.gz
     chmod +x iniq
     sudo mv iniq /usr/local/bin/
@@ -90,6 +90,6 @@ release:
     ## Verify checksums
 
     ```bash
-    curl -L https://github.com/teomyth/iniq/releases/download/{{.Version}}/SHA256SUMS.txt -o SHA256SUMS.txt
+    curl -L https://github.com/teomyth/iniq/releases/download/{{.Tag}}/SHA256SUMS.txt -o SHA256SUMS.txt
     sha256sum -c SHA256SUMS.txt
     ```
