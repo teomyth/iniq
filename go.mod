@@ -1,6 +1,8 @@
 module github.com/teomyth/iniq
 
-go 1.24.3
+go 1.23.0
+
+toolchain go1.23.4
 
 require (
 	github.com/go-task/task/v3 v3.43.3
