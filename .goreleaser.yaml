@@ -66,12 +66,22 @@ release:
   name_template: "INIQ {{.Version}}"
   draft: false
   prerelease: auto
+  extra_files:
+    - glob: scripts/install.sh
   header: |
     # INIQ {{.Version}}
   footer: |
     ## Installation
 
-    ### Linux (AMD64)
+    ### Option 1: Using the install script (Recommended)
+
+    ```bash
+    curl -L https://github.com/teomyth/iniq/releases/download/{{.Tag}}/install.sh | sudo bash
+    ```
+
+    ### Option 2: Manual installation
+
+    #### Linux (AMD64)
     ```bash
     curl -L https://github.com/teomyth/iniq/releases/download/{{.Tag}}/iniq-linux-amd64.tar.gz -o iniq.tar.gz
     tar -xzf iniq.tar.gz
@@ -79,7 +89,7 @@ release:
     sudo mv iniq /usr/local/bin/
     ```
 
-    ### Linux (ARM64)
+    #### Linux (ARM64)
     ```bash
     curl -L https://github.com/teomyth/iniq/releases/download/{{.Tag}}/iniq-linux-arm64.tar.gz -o iniq.tar.gz
     tar -xzf iniq.tar.gz

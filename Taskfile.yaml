@@ -159,9 +159,8 @@ tasks:
     cmds:
       - echo "📄 Building installation scripts..."
       - mkdir -p bin/scripts
-      - awk 'FNR==1 && NR!=1 {print ""}; 1' scripts/common.sh scripts/install.sh > bin/scripts/install.sh
-      - awk 'FNR==1 && NR!=1 {print ""}; 1' scripts/common.sh scripts/iniq.sh > bin/scripts/iniq.sh
-      - chmod +x bin/scripts/install.sh bin/scripts/iniq.sh
+      - cp scripts/install.sh bin/scripts/install.sh
+      - chmod +x bin/scripts/install.sh
 
   build:devserver:
     desc: Build the development HTTP server
