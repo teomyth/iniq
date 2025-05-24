@@ -709,15 +709,27 @@ SSH access, security configurations, password policy enforcement, and system har
 							}
 						}
 
-						// Only prompt for passwordless sudo if not already configured
-						if !hasPasswordlessSudo {
-							// Continue with sudo configuration
-							// Use utility function, default value is true (Y)
-							sudoNoPass = utils.PromptYesNo("Enable passwordless sudo?", true)
-							options["sudo-nopasswd"] = sudoNoPass
-						} else {
-							fmt.Printf("\033[90mKeeping existing passwordless sudo configuration\033[0m\n")
-							// Mark sudo as already configured, no need to execute again
+						// Use the new state toggle function for passwordless sudo
+						passwordlessSudoResult := utils.PromptStateToggle(utils.StateToggleConfig{
+							FeatureName:  "passwordless sudo",
+							CurrentState: hasPasswordlessSudo,
+						})
+
+						// Convert action to the expected format and track changes
+						switch passwordlessSudoResult.Action {
+						case utils.StateToggleEnable:
+							sudoNoPass = true
+							options["sudo-nopasswd"] = true
+						case utils.StateToggleDisable:
+							sudoNoPass = false
+							options["sudo-nopasswd"] = false
+						case utils.StateToggleKeep:
+							sudoNoPass = hasPasswordlessSudo // Keep current state
+							options["sudo-nopasswd"] = hasPasswordlessSudo
+						}
+
+						// Mark sudo as already configured if no changes needed
+						if !passwordlessSudoResult.HasChange {
 							options["sudo-already-configured"] = true
 						}
 					} else {
@@ -727,14 +739,27 @@ SSH access, security configurations, password policy enforcement, and system har
 					}
 				} else {
 					// User already has sudo privileges
-					// Only prompt for passwordless sudo if not already configured
-					if !hasPasswordlessSudo {
-						// Directly prompt for passwordless sudo without asking if they want to configure sudo
-						sudoNoPass = utils.PromptYesNo("Enable passwordless sudo?", true)
-						options["sudo-nopasswd"] = sudoNoPass
-					} else {
-						fmt.Printf("\033[90mKeeping existing passwordless sudo configuration\033[0m\n")
-						// Mark sudo as already configured, no need to execute again
+					// Use the new state toggle function for passwordless sudo
+					passwordlessSudoResult := utils.PromptStateToggle(utils.StateToggleConfig{
+						FeatureName:  "passwordless sudo",
+						CurrentState: hasPasswordlessSudo,
+					})
+
+					// Convert action to the expected format and track changes
+					switch passwordlessSudoResult.Action {
+					case utils.StateToggleEnable:
+						sudoNoPass = true
+						options["sudo-nopasswd"] = true
+					case utils.StateToggleDisable:
+						sudoNoPass = false
+						options["sudo-nopasswd"] = false
+					case utils.StateToggleKeep:
+						sudoNoPass = hasPasswordlessSudo // Keep current state
+						options["sudo-nopasswd"] = hasPasswordlessSudo
+					}
+
+					// Mark sudo as already configured if no changes needed
+					if !passwordlessSudoResult.HasChange {
 						options["sudo-already-configured"] = true
 					}
 				}

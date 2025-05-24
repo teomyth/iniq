@@ -25,7 +25,7 @@ func TestParseBoolValue(t *testing.T) {
 		{"T", "T", true, false},
 		{"on", "on", true, false},
 		{"ON", "ON", true, false},
-		
+
 		// False values
 		{"no", "no", false, false},
 		{"NO", "NO", false, false},
@@ -40,11 +40,11 @@ func TestParseBoolValue(t *testing.T) {
 		{"F", "F", false, false},
 		{"off", "off", false, false},
 		{"OFF", "OFF", false, false},
-		
+
 		// Whitespace handling
 		{"  yes  ", "  yes  ", true, false},
 		{"  no  ", "  no  ", false, false},
-		
+
 		// Invalid values
 		{"invalid", "invalid", false, true},
 		{"maybe", "maybe", false, true},
@@ -57,19 +57,19 @@ func TestParseBoolValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := ParseBoolValue(tt.input)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("ParseBoolValue(%q) expected error, got nil", tt.input)
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("ParseBoolValue(%q) unexpected error: %v", tt.input, err)
 				return
 			}
-			
+
 			if result != tt.expected {
 				t.Errorf("ParseBoolValue(%q) = %v, want %v", tt.input, result, tt.expected)
 			}
