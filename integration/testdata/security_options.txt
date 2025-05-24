@@ -18,7 +18,7 @@ stdout 'all'
 stdout 'backup'
 
 # Test --all flag with --dry-run
-exec iniq --all --dry-run -y
+exec iniq --all --dry-run -y -u testuser --no-pass
 stdout 'Would disable SSH root login'
 stdout 'Would disable SSH password authentication'
 

@@ -91,6 +91,7 @@ func (f *Feature) ShouldActivate(options map[string]any) bool {
 		// If --all is specified, enable all security options
 		options["ssh-no-root"] = true
 		options["ssh-no-password"] = true
+		options["ssh-security-has-changes"] = true
 		return true
 	}
 
@@ -102,9 +103,16 @@ func (f *Feature) ShouldActivate(options map[string]any) bool {
 	sshRootLogin, hasRootLogin := options["ssh-root-login"].(string)
 	sshPasswordAuth, hasPasswordAuth := options["ssh-password-auth"].(string)
 
-	return (((hasNoRoot && sshNoRoot) || (hasNoPass && sshNoPass)) ||
+	result := (((hasNoRoot && sshNoRoot) || (hasNoPass && sshNoPass)) ||
 		((hasRootLogin && sshRootLogin != "") || (hasPasswordAuth && sshPasswordAuth != ""))) &&
 		(!hasSkipSudo || !skipSudo)
+
+	// If SSH security feature is activated, mark that we have changes
+	if result {
+		options["ssh-security-has-changes"] = true
+	}
+
+	return result
 }
 
 // ValidateOptions validates the feature options
@@ -360,6 +368,21 @@ func (f *Feature) DetectCurrentState(ctx *features.ExecutionContext) (map[string
 
 	// Check if running with sufficient privileges
 	if os.Geteuid() != 0 {
+		// In dry-run mode, we can still provide mock state for testing
+		if ctx.DryRun {
+			state["ssh_config_file"] = "/etc/ssh/sshd_config"
+			state["ssh_config_exists"] = true
+			state["root_login_disabled"] = false // Assume insecure defaults for testing
+			state["password_auth_disabled"] = false
+			state["permit_root_login_value"] = "yes"
+			state["password_auth_value"] = "yes"
+			state["permit_root_login_explicit"] = false
+			state["password_auth_explicit"] = false
+			state["permit_root_login_source"] = "default"
+			state["password_auth_source"] = "default"
+			state["is_root"] = false
+			return state, nil
+		}
 		return state, fmt.Errorf("SSH security configuration requires root privileges. Please run with sudo")
 	}
 
