@@ -552,12 +552,6 @@ func isUserInSudoGroup(username string) (bool, error) {
 	return false, nil
 }
 
-// hasPasswordlessSudo checks if a user has passwordless sudo (legacy function)
-func hasPasswordlessSudo(username string) (bool, error) {
-	result, err := hasPasswordlessSudoDetailed(username)
-	return result, err
-}
-
 // hasPasswordlessSudoDetailed checks if a user has passwordless sudo with detailed error handling
 func hasPasswordlessSudoDetailed(username string) (bool, error) {
 	// Check if running with sufficient privileges to read sudoers files
