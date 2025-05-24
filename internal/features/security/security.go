@@ -38,16 +38,30 @@ func (f *Feature) Description() string {
 func (f *Feature) Flags() []features.Flag {
 	return []features.Flag{
 		{
+			Name:      "ssh-root-login",
+			Shorthand: "",
+			Usage:     "configure SSH root login (yes|enable|true|1|y|t|on or no|disable|false|0|n|f|off)",
+			Default:   "",
+			Required:  false,
+		},
+		{
+			Name:      "ssh-password-auth",
+			Shorthand: "",
+			Usage:     "configure SSH password authentication (yes|enable|true|1|y|t|on or no|disable|false|0|n|f|off)",
+			Default:   "",
+			Required:  false,
+		},
+		{
 			Name:      "ssh-no-root",
 			Shorthand: "",
-			Usage:     "disable SSH root login",
+			Usage:     "disable SSH root login (deprecated, use --ssh-root-login=disable)",
 			Default:   false,
 			Required:  false,
 		},
 		{
 			Name:      "ssh-no-password",
 			Shorthand: "",
-			Usage:     "disable SSH password authentication",
+			Usage:     "disable SSH password authentication (deprecated, use --ssh-password-auth=disable)",
 			Default:   false,
 			Required:  false,
 		},
@@ -84,87 +98,182 @@ func (f *Feature) ShouldActivate(options map[string]any) bool {
 	sshNoRoot, hasNoRoot := options["ssh-no-root"].(bool)
 	sshNoPass, hasNoPass := options["ssh-no-password"].(bool)
 
-	return ((hasNoRoot && sshNoRoot) || (hasNoPass && sshNoPass)) && (!hasSkipSudo || !skipSudo)
+	// Check new parameters
+	sshRootLogin, hasRootLogin := options["ssh-root-login"].(string)
+	sshPasswordAuth, hasPasswordAuth := options["ssh-password-auth"].(string)
+
+	return (((hasNoRoot && sshNoRoot) || (hasNoPass && sshNoPass)) ||
+		((hasRootLogin && sshRootLogin != "") || (hasPasswordAuth && sshPasswordAuth != ""))) &&
+		(!hasSkipSudo || !skipSudo)
 }
 
 // ValidateOptions validates the feature options
 func (f *Feature) ValidateOptions(options map[string]any) error {
-	// No validation needed for boolean flags
+	// Validate ssh-root-login parameter
+	if rootLogin, ok := options["ssh-root-login"].(string); ok && rootLogin != "" {
+		if _, err := utils.ParseBoolValue(rootLogin); err != nil {
+			return fmt.Errorf("invalid value for --ssh-root-login: %w", err)
+		}
+	}
+
+	// Validate ssh-password-auth parameter
+	if passwordAuth, ok := options["ssh-password-auth"].(string); ok && passwordAuth != "" {
+		if _, err := utils.ParseBoolValue(passwordAuth); err != nil {
+			return fmt.Errorf("invalid value for --ssh-password-auth: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// SSHSecurityOptions represents the parsed SSH security configuration
+type SSHSecurityOptions struct {
+	RootLoginAction    string // "enable", "disable", or "keep"
+	PasswordAuthAction string // "enable", "disable", or "keep"
+}
+
+// parseSSHSecurityOptions parses and resolves SSH security options from various sources
+func parseSSHSecurityOptions(options map[string]any, _ map[string]any) (SSHSecurityOptions, error) {
+	opts := SSHSecurityOptions{
+		RootLoginAction:    "keep", // Default: keep current state
+		PasswordAuthAction: "keep",
+	}
+
+	// Parse new parameters first (they take precedence)
+	if rootLogin, ok := options["ssh-root-login"].(string); ok && rootLogin != "" {
+		enable, err := utils.ParseBoolValue(rootLogin)
+		if err != nil {
+			return opts, err
+		}
+		if enable {
+			opts.RootLoginAction = "enable"
+		} else {
+			opts.RootLoginAction = "disable"
+		}
+	}
+
+	if passwordAuth, ok := options["ssh-password-auth"].(string); ok && passwordAuth != "" {
+		enable, err := utils.ParseBoolValue(passwordAuth)
+		if err != nil {
+			return opts, err
+		}
+		if enable {
+			opts.PasswordAuthAction = "enable"
+		} else {
+			opts.PasswordAuthAction = "disable"
+		}
+	}
+
+	// Handle backward compatibility with old parameters
+	if opts.RootLoginAction == "keep" {
+		if noRoot, ok := options["ssh-no-root"].(bool); ok && noRoot {
+			opts.RootLoginAction = "disable"
+		}
+	}
+
+	if opts.PasswordAuthAction == "keep" {
+		if noPassword, ok := options["ssh-no-password"].(bool); ok && noPassword {
+			opts.PasswordAuthAction = "disable"
+		}
+	}
+
+	return opts, nil
 }
 
 // Execute executes the feature functionality
 func (f *Feature) Execute(ctx *features.ExecutionContext) error {
-	sshNoRoot, hasNoRoot := ctx.Options["ssh-no-root"].(bool)
-	sshNoPass, hasNoPass := ctx.Options["ssh-no-password"].(bool)
+	// Get current state for intelligent prompting
+	currentState, err := f.DetectCurrentState(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to detect current SSH security state: %w", err)
+	}
+
+	// Parse SSH security options
+	opts, err := parseSSHSecurityOptions(ctx.Options, currentState)
+	if err != nil {
+		return err
+	}
 
 	// If in interactive mode and no security options are specified, prompt the user
-	if ctx.Interactive && (!hasNoRoot || !hasNoPass) {
+	if ctx.Interactive && opts.RootLoginAction == "keep" && opts.PasswordAuthAction == "keep" {
 		ctx.Logger.Info("SSH Security Configuration")
 
-		if !hasNoRoot {
-			// Use custom prompt functions
-			fmt.Print("Disable SSH root login? [y/N]: ")
-			var input string
-			_, _ = fmt.Scanln(&input) // Ignore error for user input
-			if strings.ToLower(input) == "y" || strings.ToLower(input) == "yes" {
-				sshNoRoot = true
-				ctx.Options["ssh-no-root"] = true
-				fmt.Printf("\033[90mSelected: Yes\033[0m\n") // Show user selection
-			} else {
-				// If the user press enter or enter n/no, no is selected.
-				if input == "" {
-					fmt.Printf("\033[90mSelected: No (default)\033[0m\n")
-				} else {
-					fmt.Printf("\033[90mSelected: No\033[0m\n")
-				}
-			}
+		// Get current state values
+		rootLoginDisabled, _ := currentState["root_login_disabled"].(bool)
+		passwordAuthDisabled, _ := currentState["password_auth_disabled"].(bool)
+
+		// Use the new state toggle function for root login
+		rootLoginResult := utils.PromptStateToggle(utils.StateToggleConfig{
+			FeatureName:  "SSH root login",
+			CurrentState: !rootLoginDisabled, // Invert because we track "disabled" but function expects "enabled"
+		})
+
+		// Use the new state toggle function for password authentication
+		passwordAuthResult := utils.PromptStateToggle(utils.StateToggleConfig{
+			FeatureName:  "SSH password authentication",
+			CurrentState: !passwordAuthDisabled, // Invert because we track "disabled" but function expects "enabled"
+		})
+
+		// Convert actions to the expected format
+		switch rootLoginResult.Action {
+		case utils.StateToggleEnable:
+			opts.RootLoginAction = "enable"
+		case utils.StateToggleDisable:
+			opts.RootLoginAction = "disable"
+		case utils.StateToggleKeep:
+			opts.RootLoginAction = "keep"
 		}
 
-		if !hasNoPass {
-			// Use custom prompt functions
-			fmt.Print("Disable SSH password authentication? [y/N]: ")
-			var input string
-			_, _ = fmt.Scanln(&input) // Ignore error for user input
-			if strings.ToLower(input) == "y" || strings.ToLower(input) == "yes" {
-				sshNoPass = true
-				ctx.Options["ssh-no-password"] = true
-				fmt.Printf("\033[90mSelected: Yes\033[0m\n") // Show user selection
-			} else {
-				// If the user press enter or enter n/no, no is selected.
-				if input == "" {
-					fmt.Printf("\033[90mSelected: No (default)\033[0m\n")
-				} else {
-					fmt.Printf("\033[90mSelected: No\033[0m\n")
-				}
-			}
+		switch passwordAuthResult.Action {
+		case utils.StateToggleEnable:
+			opts.PasswordAuthAction = "enable"
+		case utils.StateToggleDisable:
+			opts.PasswordAuthAction = "disable"
+		case utils.StateToggleKeep:
+			opts.PasswordAuthAction = "keep"
 		}
 	}
 
-	// If non-interactive mode and no security options are specified, use the default value (not enabled)
-	if !ctx.Interactive {
-		if !hasNoRoot {
-			sshNoRoot = false
-			ctx.Options["ssh-no-root"] = false
-		}
-		if !hasNoPass {
-			sshNoPass = false
-			ctx.Options["ssh-no-password"] = false
-		}
-	}
+	// Check if any changes are needed and provide appropriate feedback
+	hasChanges := opts.RootLoginAction != "keep" || opts.PasswordAuthAction != "keep"
 
-	// Skip if neither option is enabled
-	if !sshNoRoot && !sshNoPass {
-		ctx.Logger.Info("No SSH security options enabled, skipping")
+	if !hasChanges {
+		// No changes needed - show confirmation message
+		ctx.Logger.Info("")
+		ctx.Logger.Info("SSH Security Configuration")
+		ctx.Logger.Info("--------------------------")
+		ctx.Logger.Success("✓ No changes needed - all settings already match your preferences")
+
+		// Get current state values for display
+		rootLoginDisabled, _ := currentState["root_login_disabled"].(bool)
+		passwordAuthDisabled, _ := currentState["password_auth_disabled"].(bool)
+
+		// Show current settings
+		rootStatus := "enabled"
+		if rootLoginDisabled {
+			rootStatus = "disabled"
+		}
+		passwordStatus := "enabled"
+		if passwordAuthDisabled {
+			passwordStatus = "disabled"
+		}
+
+		ctx.Logger.Info("  - Root login: %s (unchanged)", rootStatus)
+		ctx.Logger.Info("  - Password authentication: %s (unchanged)", passwordStatus)
+
 		return nil
 	}
 
 	// Skip if dry run
 	if ctx.DryRun {
-		if sshNoRoot {
+		if opts.RootLoginAction == "enable" {
+			ctx.Logger.Info("Would enable SSH root login")
+		} else if opts.RootLoginAction == "disable" {
 			ctx.Logger.Info("Would disable SSH root login")
 		}
-		if sshNoPass {
+		if opts.PasswordAuthAction == "enable" {
+			ctx.Logger.Info("Would enable SSH password authentication")
+		} else if opts.PasswordAuthAction == "disable" {
 			ctx.Logger.Info("Would disable SSH password authentication")
 		}
 		return nil
@@ -200,13 +309,23 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 	var configChanges []string
 	newContent := string(configContent)
 
-	if sshNoRoot {
+	// Apply root login configuration
+	if opts.RootLoginAction == "enable" {
+		ctx.Logger.Step("Enabling SSH root login...")
+		newContent = f.enableRootLogin(newContent)
+		configChanges = append(configChanges, "PermitRootLogin yes")
+	} else if opts.RootLoginAction == "disable" {
 		ctx.Logger.Step("Disabling SSH root login...")
 		newContent = f.disableRootLogin(newContent)
 		configChanges = append(configChanges, "PermitRootLogin no")
 	}
 
-	if sshNoPass {
+	// Apply password authentication configuration
+	if opts.PasswordAuthAction == "enable" {
+		ctx.Logger.Step("Enabling SSH password authentication...")
+		newContent = f.enablePasswordAuth(newContent)
+		configChanges = append(configChanges, "PasswordAuthentication yes")
+	} else if opts.PasswordAuthAction == "disable" {
 		ctx.Logger.Step("Disabling SSH password authentication...")
 		newContent = f.disablePasswordAuth(newContent)
 		configChanges = append(configChanges, "PasswordAuthentication no")
@@ -239,6 +358,11 @@ func (f *Feature) Priority() int {
 func (f *Feature) DetectCurrentState(ctx *features.ExecutionContext) (map[string]any, error) {
 	state := make(map[string]any)
 
+	// Check if running with sufficient privileges
+	if os.Geteuid() != 0 {
+		return state, fmt.Errorf("SSH security configuration requires root privileges. Please run with sudo")
+	}
+
 	// Get SSH config file path
 	sshConfigFile := osdetect.GetSSHConfigPath(f.osInfo)
 	state["ssh_config_file"] = sshConfigFile
@@ -252,55 +376,109 @@ func (f *Feature) DetectCurrentState(ctx *features.ExecutionContext) (map[string
 
 	state["ssh_config_exists"] = true
 
-	// Read current config
+	// Read current config - we have root privileges so this should work
 	configContent, err := os.ReadFile(sshConfigFile)
 	if err != nil {
-		return state, fmt.Errorf("failed to read SSH config file: %w", err)
+		return state, fmt.Errorf("failed to read SSH config file %s: %w", sshConfigFile, err)
 	}
 
-	// Check current settings
-	rootLoginDisabled := false
-	passwordAuthDisabled := false
-	var permitRootLoginValue string
-	var passwordAuthValue string
+	// Parse SSH configuration
+	rootLoginResult := f.parseSSHSetting(string(configContent), "PermitRootLogin")
+	passwordAuthResult := f.parseSSHSetting(string(configContent), "PasswordAuthentication")
 
-	lines := strings.Split(string(configContent), "\n")
-
-	// Check for root login setting
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmedLine, "PermitRootLogin") && !strings.HasPrefix(trimmedLine, "#") {
-			rootLoginDisabled = strings.Contains(trimmedLine, "no")
-			parts := strings.Fields(trimmedLine)
-			if len(parts) > 1 {
-				permitRootLoginValue = parts[1]
-			}
-			break
-		}
-	}
-
-	// Check for password authentication setting
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmedLine, "PasswordAuthentication") && !strings.HasPrefix(trimmedLine, "#") {
-			passwordAuthDisabled = strings.Contains(trimmedLine, "no")
-			parts := strings.Fields(trimmedLine)
-			if len(parts) > 1 {
-				passwordAuthValue = parts[1]
-			}
-			break
-		}
-	}
-
-	state["root_login_disabled"] = rootLoginDisabled
-	state["password_auth_disabled"] = passwordAuthDisabled
-	state["permit_root_login_value"] = permitRootLoginValue
-	state["password_auth_value"] = passwordAuthValue
+	// Determine security status based on explicit settings and defaults
+	state["root_login_disabled"] = f.isRootLoginSecure(rootLoginResult)
+	state["password_auth_disabled"] = f.isPasswordAuthSecure(passwordAuthResult)
+	state["permit_root_login_value"] = rootLoginResult.EffectiveValue
+	state["password_auth_value"] = passwordAuthResult.EffectiveValue
+	state["permit_root_login_explicit"] = rootLoginResult.IsExplicit
+	state["password_auth_explicit"] = passwordAuthResult.IsExplicit
+	state["permit_root_login_source"] = rootLoginResult.Source
+	state["password_auth_source"] = passwordAuthResult.Source
 
 	// Check if running as root
 	state["is_root"] = os.Geteuid() == 0
 
 	return state, nil
+}
+
+// SSHSettingResult represents the result of parsing an SSH setting
+type SSHSettingResult struct {
+	EffectiveValue string // The effective value (what SSH actually uses)
+	IsExplicit     bool   // Whether the setting is explicitly configured
+	Source         string // Source of the value: "explicit", "default", or "commented"
+}
+
+// parseSSHSetting parses a specific SSH setting from the configuration
+func (f *Feature) parseSSHSetting(configContent, settingName string) SSHSettingResult {
+	lines := strings.Split(configContent, "\n")
+
+	// Look for explicit (uncommented) setting first
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmedLine, settingName+" ") && !strings.HasPrefix(trimmedLine, "#") {
+			parts := strings.Fields(trimmedLine)
+			if len(parts) > 1 {
+				return SSHSettingResult{
+					EffectiveValue: parts[1],
+					IsExplicit:     true,
+					Source:         "explicit",
+				}
+			}
+		}
+	}
+
+	// Look for commented setting to understand what would be the default
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmedLine, "#"+settingName+" ") {
+			parts := strings.Fields(trimmedLine)
+			if len(parts) > 1 {
+				// Remove the # prefix
+				value := parts[1]
+				return SSHSettingResult{
+					EffectiveValue: value,
+					IsExplicit:     false,
+					Source:         "commented",
+				}
+			}
+		}
+	}
+
+	// No setting found, use SSH defaults
+	defaultValue := f.getSSHDefault(settingName)
+	return SSHSettingResult{
+		EffectiveValue: defaultValue,
+		IsExplicit:     false,
+		Source:         "default",
+	}
+}
+
+// getSSHDefault returns the default value for an SSH setting
+func (f *Feature) getSSHDefault(settingName string) string {
+	switch settingName {
+	case "PermitRootLogin":
+		// Default varies by OS and SSH version, but commonly "prohibit-password" or "yes"
+		// We'll be conservative and assume "yes" (less secure) unless we know better
+		return "yes"
+	case "PasswordAuthentication":
+		// Default is typically "yes"
+		return "yes"
+	default:
+		return "unknown"
+	}
+}
+
+// isRootLoginSecure determines if the root login setting is secure
+func (f *Feature) isRootLoginSecure(result SSHSettingResult) bool {
+	// "no" is secure, "prohibit-password" is also secure
+	return result.EffectiveValue == "no" || result.EffectiveValue == "prohibit-password"
+}
+
+// isPasswordAuthSecure determines if the password authentication setting is secure
+func (f *Feature) isPasswordAuthSecure(result SSHSettingResult) bool {
+	// Only "no" is secure for password authentication
+	return result.EffectiveValue == "no"
 }
 
 // DisplayCurrentState displays the current state of the security feature
@@ -310,14 +488,14 @@ func (f *Feature) DisplayCurrentState(ctx *features.ExecutionContext, state map[
 	}
 
 	sshConfigExists, _ := state["ssh_config_exists"].(bool)
-	sshConfigPath, _ := state["ssh_config_path"].(string)
+	sshConfigFile, _ := state["ssh_config_file"].(string)
 
 	// SSH config file status
 	fmt.Printf("  \033[1;34m%s\033[0m: ", "SSH Config File")
 	if sshConfigExists {
 		fmt.Printf("\033[1;32m✓ Found\033[0m")
-		if sshConfigPath != "" {
-			fmt.Printf(" \033[90m(%s)\033[0m", sshConfigPath)
+		if sshConfigFile != "" {
+			fmt.Printf(" \033[90m(%s)\033[0m", sshConfigFile)
 		}
 		fmt.Println()
 	} else {
@@ -330,6 +508,10 @@ func (f *Feature) DisplayCurrentState(ctx *features.ExecutionContext, state map[
 	passwordAuthDisabled, _ := state["password_auth_disabled"].(bool)
 	permitRootLoginValue, _ := state["permit_root_login_value"].(string)
 	passwordAuthValue, _ := state["password_auth_value"].(string)
+	permitRootLoginExplicit, _ := state["permit_root_login_explicit"].(bool)
+	passwordAuthExplicit, _ := state["password_auth_explicit"].(bool)
+	permitRootLoginSource, _ := state["permit_root_login_source"].(string)
+	passwordAuthSource, _ := state["password_auth_source"].(string)
 
 	// Root login status
 	fmt.Printf("  \033[1;34m%s\033[0m: ", "Root Login")
@@ -338,8 +520,19 @@ func (f *Feature) DisplayCurrentState(ctx *features.ExecutionContext, state map[
 	} else {
 		fmt.Printf("\033[1;31m✗ Enabled\033[0m")
 	}
-	if permitRootLoginValue != "" {
-		fmt.Printf(" \033[90m(PermitRootLogin %s)\033[0m", permitRootLoginValue)
+
+	// Show the actual setting and source
+	if permitRootLoginValue != "" && permitRootLoginValue != "unknown" {
+		fmt.Printf(" \033[90m(PermitRootLogin %s", permitRootLoginValue)
+		if !permitRootLoginExplicit {
+			switch permitRootLoginSource {
+			case "commented":
+				fmt.Printf(" - from commented default")
+			case "default":
+				fmt.Printf(" - SSH default")
+			}
+		}
+		fmt.Printf(")\033[0m")
 	}
 	fmt.Println()
 
@@ -350,8 +543,19 @@ func (f *Feature) DisplayCurrentState(ctx *features.ExecutionContext, state map[
 	} else {
 		fmt.Printf("\033[1;31m✗ Enabled\033[0m")
 	}
-	if passwordAuthValue != "" {
-		fmt.Printf(" \033[90m(PasswordAuthentication %s)\033[0m", passwordAuthValue)
+
+	// Show the actual setting and source
+	if passwordAuthValue != "" && passwordAuthValue != "unknown" {
+		fmt.Printf(" \033[90m(PasswordAuthentication %s", passwordAuthValue)
+		if !passwordAuthExplicit {
+			switch passwordAuthSource {
+			case "commented":
+				fmt.Printf(" - from commented default")
+			case "default":
+				fmt.Printf(" - SSH default")
+			}
+		}
+		fmt.Printf(")\033[0m")
 	}
 	fmt.Println()
 
@@ -389,11 +593,15 @@ func (f *Feature) ShouldPromptUser(ctx *features.ExecutionContext, state map[str
 	return true
 }
 
-// disableRootLogin disables root login in SSH config
-func (f *Feature) disableRootLogin(config string) string {
+// configureRootLogin configures root login in SSH config
+func (f *Feature) configureRootLogin(config string, enable bool) string {
 	// For empty content, just return the comment and setting
 	if strings.TrimSpace(config) == "" {
-		return "# Added by INIQ (Previous setting: none)\nPermitRootLogin no"
+		value := "no"
+		if enable {
+			value = "yes"
+		}
+		return fmt.Sprintf("# Added by INIQ (Previous setting: none)\nPermitRootLogin %s", value)
 	}
 
 	lines := strings.Split(config, "\n")
@@ -453,55 +661,32 @@ func (f *Feature) disableRootLogin(config string) string {
 		cleanedLines = append(cleanedLines, lines[i])
 	}
 
-	// For test cases, we need to match the expected format exactly
-	// This is a simplified approach to match the test cases
+	// Determine the new setting value
+	value := "no"
+	if enable {
+		value = "yes"
+	}
 
-	// For the specific test cases
+	// Add the new setting
 	if permitRootLoginFound {
 		commentLine := "# Modified by INIQ (Previous setting: " + permitRootLoginValue + ")"
-		newSetting := "PermitRootLogin no"
+		newSetting := "PermitRootLogin " + value
 
-		// Special case for test with existing INIQ comment
-		if strings.Contains(config, "# Modified by INIQ (Previous setting: PermitRootLogin") {
-			// Format to match test expectations
-			if len(cleanedLines) == 1 && cleanedLines[0] == "# SSH config" {
-				return "# SSH config\n" + commentLine + "\n" + newSetting
-			}
-
-			// For test cases with PasswordAuthentication
-			if strings.Contains(config, "PasswordAuthentication") {
-				for _, line := range cleanedLines {
-					if strings.Contains(line, "PasswordAuthentication") {
-						// Keep this line and add our setting after it
-						result := ""
-						for j := 0; j < len(cleanedLines); j++ {
-							result += cleanedLines[j] + "\n"
-						}
-						return strings.TrimRight(result, "\n") + "\n" + commentLine + "\n" + newSetting
-					}
-				}
-			}
-		}
-
-		// For test cases with PermitRootLogin and PasswordAuthentication
-		if strings.Contains(config, "PasswordAuthentication") {
+		// For test cases compatibility
+		if len(cleanedLines) > 0 {
 			result := ""
 			for _, line := range cleanedLines {
-				if !strings.Contains(line, "PermitRootLogin") {
-					result += line + "\n"
-				}
+				result += line + "\n"
 			}
 			return strings.TrimRight(result, "\n") + "\n" + commentLine + "\n" + newSetting
+		} else {
+			return commentLine + "\n" + newSetting
 		}
-
-		// Default case
-		return "# SSH config\n" + commentLine + "\n" + newSetting + "\nPasswordAuthentication yes\n"
 	} else {
 		// No existing setting found, add as new
 		commentLine := "# Added by INIQ (Previous setting: none)"
-		newSetting := "PermitRootLogin no"
+		newSetting := "PermitRootLogin " + value
 
-		// For test cases
 		if len(cleanedLines) > 0 {
 			result := ""
 			for _, line := range cleanedLines {
@@ -514,11 +699,25 @@ func (f *Feature) disableRootLogin(config string) string {
 	}
 }
 
-// disablePasswordAuth disables password authentication in SSH config
-func (f *Feature) disablePasswordAuth(config string) string {
+// enableRootLogin enables root login in SSH config
+func (f *Feature) enableRootLogin(config string) string {
+	return f.configureRootLogin(config, true)
+}
+
+// disableRootLogin disables root login in SSH config
+func (f *Feature) disableRootLogin(config string) string {
+	return f.configureRootLogin(config, false)
+}
+
+// configurePasswordAuth configures password authentication in SSH config
+func (f *Feature) configurePasswordAuth(config string, enable bool) string {
 	// For empty content, just return the comment and setting
 	if strings.TrimSpace(config) == "" {
-		return "# Added by INIQ (Previous setting: none)\nPasswordAuthentication no"
+		value := "no"
+		if enable {
+			value = "yes"
+		}
+		return fmt.Sprintf("# Added by INIQ (Previous setting: none)\nPasswordAuthentication %s", value)
 	}
 
 	lines := strings.Split(config, "\n")
@@ -578,55 +777,32 @@ func (f *Feature) disablePasswordAuth(config string) string {
 		cleanedLines = append(cleanedLines, lines[i])
 	}
 
-	// For test cases, we need to match the expected format exactly
-	// This is a simplified approach to match the test cases
+	// Determine the new setting value
+	value := "no"
+	if enable {
+		value = "yes"
+	}
 
-	// For the specific test cases
+	// Add the new setting
 	if passwordAuthFound {
 		commentLine := "# Modified by INIQ (Previous setting: " + passwordAuthValue + ")"
-		newSetting := "PasswordAuthentication no"
+		newSetting := "PasswordAuthentication " + value
 
-		// Special case for test with existing INIQ comment
-		if strings.Contains(config, "# Modified by INIQ (Previous setting: PasswordAuthentication") {
-			// Format to match test expectations
-			if len(cleanedLines) == 1 && cleanedLines[0] == "# SSH config" {
-				return "# SSH config\n" + commentLine + "\n" + newSetting
-			}
-
-			// For test cases with PermitRootLogin
-			if strings.Contains(config, "PermitRootLogin") {
-				for _, line := range cleanedLines {
-					if strings.Contains(line, "PermitRootLogin") {
-						// Keep this line and add our setting after it
-						result := ""
-						for j := 0; j < len(cleanedLines); j++ {
-							result += cleanedLines[j] + "\n"
-						}
-						return strings.TrimRight(result, "\n") + "\n" + commentLine + "\n" + newSetting
-					}
-				}
-			}
-		}
-
-		// For test cases with PasswordAuthentication and PermitRootLogin
-		if strings.Contains(config, "PermitRootLogin") {
+		// For test cases compatibility
+		if len(cleanedLines) > 0 {
 			result := ""
 			for _, line := range cleanedLines {
-				if !strings.Contains(line, "PasswordAuthentication") {
-					result += line + "\n"
-				}
+				result += line + "\n"
 			}
 			return strings.TrimRight(result, "\n") + "\n" + commentLine + "\n" + newSetting
+		} else {
+			return commentLine + "\n" + newSetting
 		}
-
-		// Default case
-		return "# SSH config\n" + commentLine + "\n" + newSetting + "\nPermitRootLogin no\n"
 	} else {
 		// No existing setting found, add as new
 		commentLine := "# Added by INIQ (Previous setting: none)"
-		newSetting := "PasswordAuthentication no"
+		newSetting := "PasswordAuthentication " + value
 
-		// For test cases
 		if len(cleanedLines) > 0 {
 			result := ""
 			for _, line := range cleanedLines {
@@ -637,6 +813,16 @@ func (f *Feature) disablePasswordAuth(config string) string {
 			return commentLine + "\n" + newSetting
 		}
 	}
+}
+
+// enablePasswordAuth enables password authentication in SSH config
+func (f *Feature) enablePasswordAuth(config string) string {
+	return f.configurePasswordAuth(config, true)
+}
+
+// disablePasswordAuth disables password authentication in SSH config
+func (f *Feature) disablePasswordAuth(config string) string {
+	return f.configurePasswordAuth(config, false)
 }
 
 // restartSSHService restarts the SSH service

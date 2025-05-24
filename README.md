@@ -230,6 +230,92 @@ iniq -S -k gh:username
 
 This will only perform operations that don't require elevated privileges, such as configuring SSH keys for the current user.
 
+## SSH Security Configuration
+
+INIQ provides flexible SSH security configuration options that support both enabling and disabling SSH root login and password authentication.
+
+### New Enhanced SSH Security Options
+
+#### Configure SSH Root Login
+
+Enable or disable SSH root login using the new `--ssh-root-login` parameter:
+
+```bash
+# Disable SSH root login (recommended for security)
+sudo iniq --ssh-root-login=disable
+
+# Enable SSH root login (use with caution)
+sudo iniq --ssh-root-login=enable
+```
+
+#### Configure SSH Password Authentication
+
+Enable or disable SSH password authentication using the new `--ssh-password-auth` parameter:
+
+```bash
+# Disable SSH password authentication (recommended for security)
+sudo iniq --ssh-password-auth=disable
+
+# Enable SSH password authentication (useful for development)
+sudo iniq --ssh-password-auth=enable
+```
+
+#### Flexible Boolean Value Support
+
+The new SSH security parameters support multiple boolean value formats for convenience:
+
+**Enable values:** `yes`, `enable`, `true`, `1`, `y`, `t`, `on`
+**Disable values:** `no`, `disable`, `false`, `0`, `n`, `f`, `off`
+
+Examples:
+```bash
+sudo iniq --ssh-root-login=yes --ssh-password-auth=no
+sudo iniq --ssh-root-login=true --ssh-password-auth=false
+sudo iniq --ssh-root-login=1 --ssh-password-auth=0
+sudo iniq --ssh-root-login=on --ssh-password-auth=off
+```
+
+#### Interactive Mode with Visual Enhancement
+
+In interactive mode, INIQ now provides enhanced visual feedback with colors and emojis to clearly distinguish between enable and disable actions:
+
+```bash
+sudo iniq
+```
+
+The interactive prompts will show:
+- Current SSH configuration status
+- Color-coded enable/disable options
+- Visual indicators (✅ for enable, 🚫 for disable)
+- Smart defaults based on current state
+
+#### Backward Compatibility
+
+The legacy SSH security options are still supported but marked as deprecated:
+
+```bash
+# Legacy options (still work but deprecated)
+sudo iniq --ssh-no-root --ssh-no-password
+
+# Equivalent new options (recommended)
+sudo iniq --ssh-root-login=disable --ssh-password-auth=disable
+```
+
+#### Combined Security Configuration
+
+Configure both SSH settings in a single command:
+
+```bash
+# Secure configuration (disable both)
+sudo iniq --ssh-root-login=disable --ssh-password-auth=disable
+
+# Development configuration (enable password auth, disable root)
+sudo iniq --ssh-root-login=disable --ssh-password-auth=enable
+
+# Emergency access configuration (enable both - use with extreme caution)
+sudo iniq --ssh-root-login=enable --ssh-password-auth=enable
+```
+
 ## Advanced Usage
 
 After installation, you can run INIQ with various options.
@@ -269,6 +355,21 @@ Setup development environment:
 
 ```bash
 task setup
+```
+
+Start development server:
+
+```bash
+task dev
+```
+
+This will start a local HTTP server that serves the install script and binaries for testing. The install script automatically detects the development environment and downloads from the local server instead of GitHub releases.
+
+Test the development installation:
+
+```bash
+# The install script will automatically use the local development server
+curl -L http://127.0.0.1:12345/install.sh | sudo bash
 ```
 
 Run tests:

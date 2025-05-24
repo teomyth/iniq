@@ -44,64 +44,135 @@ const (
 
 // PromptYesNo asks the user a yes/no question and returns true for yes, false for no.
 // The defaultValue parameter determines the default answer if the user just presses Enter.
-// After the user makes a choice, it displays what was selected.
+// Shows gray placeholder text for the default value that gets replaced when user types.
 func PromptYesNo(question string, defaultValue bool) bool {
 	reader := bufio.NewReader(os.Stdin)
 
-	// Determine the prompt format based on default value
-	var prompt string
-	if defaultValue {
-		prompt = fmt.Sprintf("%s [Y/n]: ", question)
-	} else {
-		prompt = fmt.Sprintf("%s [y/N]: ", question)
+	for {
+		// Determine the default character and prompt format
+		var prompt string
+		if defaultValue {
+			prompt = fmt.Sprintf("%s [%sY%s/n]: ", question, ColorGray, ColorReset)
+		} else {
+			prompt = fmt.Sprintf("%s [y/%sN%s]: ", question, ColorGray, ColorReset)
+		}
+
+		// Print the prompt
+		fmt.Print(prompt)
+
+		// Read the input
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			// On error, return the default value
+			return defaultValue
+		}
+
+		// Trim whitespace and convert to lowercase for comparison
+		trimmedInput := strings.TrimSpace(strings.ToLower(input))
+
+		// Determine the result based on input
+		if trimmedInput == "" {
+			// User pressed Enter, use default value
+			// No feedback needed - just return the default
+			return defaultValue
+		} else if trimmedInput == "y" || trimmedInput == "yes" {
+			return true
+		} else if trimmedInput == "n" || trimmedInput == "no" {
+			return false
+		} else {
+			// Invalid input, show error and retry
+			fmt.Printf("Invalid input. Please enter 'y' for yes or 'n' for no.\n")
+			continue
+		}
 	}
-
-	// Print the prompt
-	fmt.Print(prompt)
-
-	// Read the input
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		// On error, return the default value
-		return defaultValue
-	}
-
-	// Trim whitespace and convert to lowercase
-	input = strings.TrimSpace(strings.ToLower(input))
-
-	// Determine the result based on input
-	var result bool
-	if input == "" {
-		// User pressed Enter, use default value
-		result = defaultValue
-	} else if input == "y" || input == "yes" {
-		result = true
-	} else if input == "n" || input == "no" {
-		result = false
-	} else {
-		// Invalid input, use default value
-		fmt.Printf("%sInvalid input, using default: %s%s\n",
-			ColorYellow,
-			getYesNoText(defaultValue),
-			ColorReset)
-		return defaultValue
-	}
-
-	// Show what was selected
-	fmt.Printf("%sSelected: %s%s\n",
-		ColorGray,
-		getYesNoText(result),
-		ColorReset)
-
-	return result
 }
 
-// getYesNoText returns "Yes" or "No" based on the boolean value
-func getYesNoText(value bool) string {
-	if value {
-		return "Yes"
+// PromptYesNoWithFeedback asks the user a yes/no question and provides feedback when using defaults
+// featureName and currentState are used to provide meaningful feedback about the current setting
+func PromptYesNoWithFeedback(question string, defaultValue bool, featureName string, currentState bool) bool {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		// Determine the prompt format
+		var prompt string
+		if defaultValue {
+			prompt = fmt.Sprintf("%s [%sY%s/n]: ", question, ColorGray, ColorReset)
+		} else {
+			prompt = fmt.Sprintf("%s [y/%sN%s]: ", question, ColorGray, ColorReset)
+		}
+
+		// Print the prompt
+		fmt.Print(prompt)
+
+		// Read the input
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			// On error, return the default value
+			return defaultValue
+		}
+
+		// Trim whitespace and convert to lowercase for comparison
+		trimmedInput := strings.TrimSpace(strings.ToLower(input))
+
+		// Determine the result based on input
+		if trimmedInput == "" {
+			// User pressed Enter, use default value and show feedback
+			showKeepCurrentFeedback(featureName, currentState, defaultValue)
+			return defaultValue
+		} else if trimmedInput == "y" || trimmedInput == "yes" {
+			return true
+		} else if trimmedInput == "n" || trimmedInput == "no" {
+			return false
+		} else {
+			// Invalid input, show error and retry
+			fmt.Printf("Invalid input. Please enter 'y' for yes or 'n' for no.\n")
+			continue
+		}
 	}
-	return "No"
+}
+
+// showKeepCurrentFeedback shows feedback when user keeps current setting
+func showKeepCurrentFeedback(featureName string, currentState bool, defaultChoice bool) {
+	// Determine the current setting description
+	var currentDesc string
+	if featureName == "SSH root login" {
+		if currentState {
+			currentDesc = "Root login enabled"
+		} else {
+			currentDesc = "Root login disabled"
+		}
+	} else if featureName == "SSH password authentication" {
+		if currentState {
+			currentDesc = "Password authentication enabled"
+		} else {
+			currentDesc = "Password authentication disabled"
+		}
+	} else {
+		// Generic fallback
+		if currentState {
+			currentDesc = fmt.Sprintf("%s enabled", featureName)
+		} else {
+			currentDesc = fmt.Sprintf("%s disabled", featureName)
+		}
+	}
+
+	// Show feedback with checkmark and gray color to indicate "keeping current"
+	fmt.Printf("%s✓ Keeping current setting: %s%s\n", ColorGray, currentDesc, ColorReset)
+}
+
+// ParseBoolValue parses various boolean value formats
+// Supports: yes|enable|true|1|y|t|on for true values
+//
+//	no|disable|false|0|n|f|off for false values
+func ParseBoolValue(value string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "yes", "enable", "true", "1", "y", "t", "on":
+		return true, nil
+	case "no", "disable", "false", "0", "n", "f", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid boolean value: %s (supported: yes|enable|true|1|y|t|on or no|disable|false|0|n|f|off)", value)
+	}
 }
 
 // ColorText wraps text with the specified color code and resets the color afterward
@@ -132,6 +203,107 @@ func WarningText(text string) string {
 // InfoText returns the text in info color (blue)
 func InfoText(text string) string {
 	return ColorBlue + text + ColorReset
+}
+
+// StateToggleAction represents the action to take for a state toggle
+type StateToggleAction string
+
+const (
+	StateToggleKeep    StateToggleAction = "keep"
+	StateToggleEnable  StateToggleAction = "enable"
+	StateToggleDisable StateToggleAction = "disable"
+)
+
+// StateToggleConfig holds configuration for a state toggle prompt
+type StateToggleConfig struct {
+	// Feature name (e.g., "SSH root login", "SSH password authentication")
+	FeatureName string
+	// Current state (true = enabled, false = disabled)
+	CurrentState bool
+	// Custom prompt (optional)
+	AllowPrompt string // Default: "Allow {FeatureName}?"
+}
+
+// StateToggleResult holds the result of a state toggle interaction
+type StateToggleResult struct {
+	Action    StateToggleAction
+	HasChange bool
+}
+
+// PromptStateToggle provides a user-friendly state toggle interaction using "Allow" syntax
+// Returns the action to take and whether there's a change from current state
+func PromptStateToggle(config StateToggleConfig) StateToggleResult {
+	// Set default prompt if not provided, including current state information
+	if config.AllowPrompt == "" {
+		// Show current state in the prompt to make it clear
+		currentStateDesc := "disabled"
+		if config.CurrentState {
+			currentStateDesc = "enabled"
+		}
+		config.AllowPrompt = fmt.Sprintf("Allow %s? (currently %s)", config.FeatureName, currentStateDesc)
+	}
+
+	// Use three-state prompt: y/n/keep-current (Enter)
+	choice := PromptThreeState(config.AllowPrompt, config.FeatureName, config.CurrentState)
+
+	// Determine the action and whether there's a change
+	var action StateToggleAction
+	var hasChange bool
+
+	switch choice {
+	case "enable":
+		action = StateToggleEnable
+		hasChange = !config.CurrentState // Change if currently disabled
+	case "disable":
+		action = StateToggleDisable
+		hasChange = config.CurrentState // Change if currently enabled
+	case "keep":
+		action = StateToggleKeep
+		hasChange = false // No change
+	}
+
+	return StateToggleResult{
+		Action:    action,
+		HasChange: hasChange,
+	}
+}
+
+// PromptThreeState asks the user a three-state question: enable/disable/keep-current
+// Returns "enable", "disable", or "keep"
+func PromptThreeState(question string, featureName string, currentState bool) string {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		// Show prompt with [y/n] format (no default, Enter = keep current)
+		prompt := fmt.Sprintf("%s [y/n]: ", question)
+		fmt.Print(prompt)
+
+		// Read the input
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			// On error, keep current state
+			showKeepCurrentFeedback(featureName, currentState, true)
+			return "keep"
+		}
+
+		// Trim whitespace and convert to lowercase for comparison
+		trimmedInput := strings.TrimSpace(strings.ToLower(input))
+
+		// Determine the result based on input
+		if trimmedInput == "" {
+			// User pressed Enter, keep current state
+			showKeepCurrentFeedback(featureName, currentState, true)
+			return "keep"
+		} else if trimmedInput == "y" || trimmedInput == "yes" {
+			return "enable"
+		} else if trimmedInput == "n" || trimmedInput == "no" {
+			return "disable"
+		} else {
+			// Invalid input, show error and retry
+			fmt.Printf("Invalid input. Please enter 'y' for yes, 'n' for no, or press Enter to keep current setting.\n")
+			continue
+		}
+	}
 }
 
 // IsTerminal checks if the given file is a terminal
@@ -176,13 +348,7 @@ func PromptWithDefault(question string, defaultValue string) string {
 	// If input is empty, use default value
 	if input == "" {
 		input = defaultValue
-		// Show what was selected
-		if defaultValue != "" {
-			fmt.Printf("%sUsing default: %s%s\n",
-				ColorGray,
-				defaultValue,
-				ColorReset)
-		}
+		// No feedback needed - just return the default value
 	}
 
 	return input

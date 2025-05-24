@@ -93,6 +93,19 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 	username := ctx.Options["user"].(string)
 	nopasswd, hasNopasswd := ctx.Options["sudo-nopasswd"].(bool)
 
+	// Get current state to check if changes are needed
+	currentState, err := f.DetectCurrentState(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to detect current sudo state: %w", err)
+	}
+
+	// Check if user exists
+	userExists, _ := currentState["user_exists"].(bool)
+	if !userExists {
+		ctx.Logger.Info("User %s does not exist, skipping sudo configuration", username)
+		return nil
+	}
+
 	// If the sudo-nopasswd option is not specified in interactive mode, prompt the user
 	if ctx.Interactive && !hasNopasswd {
 		ctx.Logger.Info("Sudo Configuration")
@@ -106,6 +119,23 @@ func (f *Feature) Execute(ctx *features.ExecutionContext) error {
 	if !ctx.Interactive && !hasNopasswd {
 		nopasswd = true
 		ctx.Options["sudo-nopasswd"] = true
+	}
+
+	// Check current sudo state for idempotency
+	hasSudo, _ := currentState["has_sudo"].(bool)
+	hasPasswordlessSudo, _ := currentState["has_passwordless_sudo"].(bool)
+
+	// Check if configuration is already as desired
+	if hasSudo {
+		if nopasswd && hasPasswordlessSudo {
+			ctx.Logger.Info("User %s already has passwordless sudo configured", username)
+			return nil
+		} else if !nopasswd && !hasPasswordlessSudo {
+			ctx.Logger.Info("User %s already has sudo configured with password requirement", username)
+			return nil
+		}
+		// If we reach here, sudo exists but passwordless setting needs to be changed
+		ctx.Logger.Info("Updating sudo configuration for user %s", username)
 	}
 
 	// Skip if dry run
@@ -345,25 +375,38 @@ func (f *Feature) DetectCurrentState(ctx *features.ExecutionContext) (map[string
 	state["user_exists"] = true
 
 	// Check if user has sudo privileges
-	hasSudo, err := userHasSudo(username)
-	if err != nil {
-		ctx.Logger.Warning("Failed to check sudo privileges: %v", err)
+	hasSudo, sudoErr := userHasSudo(username)
+	if sudoErr != nil {
+		ctx.Logger.Warning("Failed to check sudo privileges: %v", sudoErr)
+		state["sudo_check_error"] = sudoErr.Error()
 	}
 	state["has_sudo"] = hasSudo
 
 	// Check if user is in sudo group
-	inSudoGroup, err := isUserInSudoGroup(username)
-	if err != nil {
-		ctx.Logger.Warning("Failed to check sudo group membership: %v", err)
+	inSudoGroup, groupErr := isUserInSudoGroup(username)
+	if groupErr != nil {
+		ctx.Logger.Warning("Failed to check sudo group membership: %v", groupErr)
+		state["sudo_group_check_error"] = groupErr.Error()
 	}
 	state["in_sudo_group"] = inSudoGroup
 
-	// Check if sudo is passwordless
-	hasPasswordlessSudo, err := hasPasswordlessSudo(username)
-	if err != nil {
-		ctx.Logger.Warning("Failed to check passwordless sudo: %v", err)
+	// Check if sudo is passwordless (requires elevated privileges)
+	hasPasswordlessSudo, passwordlessErr := hasPasswordlessSudoDetailed(username)
+	if passwordlessErr != nil {
+		// Check if this is a permission error
+		if strings.Contains(passwordlessErr.Error(), "permission denied") ||
+			strings.Contains(passwordlessErr.Error(), "not permitted") ||
+			os.IsPermission(passwordlessErr) {
+			state["passwordless_sudo_requires_privileges"] = true
+			state["has_passwordless_sudo"] = false // Default to false when we can't check
+		} else {
+			ctx.Logger.Warning("Failed to check passwordless sudo: %v", passwordlessErr)
+			state["has_passwordless_sudo"] = false
+		}
+	} else {
+		state["has_passwordless_sudo"] = hasPasswordlessSudo
+		state["passwordless_sudo_requires_privileges"] = false
 	}
-	state["has_passwordless_sudo"] = hasPasswordlessSudo
 
 	// Check if running as root
 	state["is_root"] = os.Geteuid() == 0
@@ -509,31 +552,80 @@ func isUserInSudoGroup(username string) (bool, error) {
 	return false, nil
 }
 
-// hasPasswordlessSudo checks if a user has passwordless sudo
+// hasPasswordlessSudo checks if a user has passwordless sudo (legacy function)
 func hasPasswordlessSudo(username string) (bool, error) {
-	// Check sudoers file
-	sudoersFile := filepath.Join("/etc/sudoers.d", username)
-	if _, err := os.Stat(sudoersFile); err == nil {
-		// Read sudoers file
-		content, err := os.ReadFile(sudoersFile)
-		if err != nil {
-			return false, fmt.Errorf("failed to read sudoers file: %w", err)
+	result, err := hasPasswordlessSudoDetailed(username)
+	return result, err
+}
+
+// hasPasswordlessSudoDetailed checks if a user has passwordless sudo with detailed error handling
+func hasPasswordlessSudoDetailed(username string) (bool, error) {
+	// Check if running with sufficient privileges to read sudoers files
+	if os.Geteuid() != 0 {
+		return false, fmt.Errorf("checking passwordless sudo requires root privileges. Please run with sudo")
+	}
+
+	// List of sudoers files to check
+	sudoersFiles := []string{
+		filepath.Join("/etc/sudoers.d", username),
+		"/etc/sudoers",
+	}
+
+	// Also check for common sudoers.d files
+	sudoersDFiles := []string{
+		"/etc/sudoers.d/90-cloud-init-users",
+		"/etc/sudoers.d/admin",
+		"/etc/sudoers.d/wheel",
+	}
+	sudoersFiles = append(sudoersFiles, sudoersDFiles...)
+
+	hasNoPasswd := false
+
+	// Check each sudoers file
+	for _, file := range sudoersFiles {
+		if _, err := os.Stat(file); err != nil {
+			continue // File doesn't exist, skip
 		}
 
-		// Check if file contains NOPASSWD
-		return strings.Contains(string(content), "NOPASSWD"), nil
+		// Read the file - we have root privileges so this should work
+		content, err := os.ReadFile(file)
+		if err != nil {
+			// Log the error but continue checking other files
+			continue
+		}
+
+		// Check if file contains NOPASSWD for this user
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "#") {
+				continue // Skip comments
+			}
+
+			// Check for user-specific NOPASSWD rules
+			if strings.Contains(line, username) && strings.Contains(line, "NOPASSWD") {
+				hasNoPasswd = true
+				break
+			}
+
+			// Check for group-based NOPASSWD rules
+			if (strings.Contains(line, "%sudo") || strings.Contains(line, "%admin") || strings.Contains(line, "%wheel")) &&
+				strings.Contains(line, "NOPASSWD") {
+				// Check if user is in the group
+				inGroup, err := isUserInSudoGroup(username)
+				if err == nil && inGroup {
+					hasNoPasswd = true
+					break
+				}
+			}
+		}
+
+		if hasNoPasswd {
+			break
+		}
 	}
 
-	// Check main sudoers file
-	cmd := exec.Command("sudo", "-n", "grep", username, "/etc/sudoers")
-	output, err := cmd.Output()
-	if err == nil {
-		// Check if output contains NOPASSWD
-		return strings.Contains(string(output), "NOPASSWD"), nil
-	}
-
-	// If we can't check, assume no passwordless sudo
-	return false, nil
+	return hasNoPasswd, nil
 }
 
 // configureLinuxSudo configures sudo for a user on Linux

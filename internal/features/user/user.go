@@ -320,6 +320,11 @@ func getRealUser() (*user.User, error) {
 func (f *Feature) DetectCurrentState(ctx *features.ExecutionContext) (map[string]any, error) {
 	state := make(map[string]any)
 
+	// Check if running with sufficient privileges for detailed sudo information
+	if os.Geteuid() != 0 {
+		return state, fmt.Errorf("user account configuration requires root privileges. Please run with sudo")
+	}
+
 	// Get username from options or use current user
 	username, ok := ctx.Options["user"].(string)
 	if !ok || username == "" {
@@ -347,7 +352,7 @@ func (f *Feature) DetectCurrentState(ctx *features.ExecutionContext) (map[string
 		shell := getUserShell(u.Username)
 		state["user_shell"] = shell
 
-		// Check if user has sudo privileges
+		// Check if user has sudo privileges - now we have root privileges so this should be accurate
 		hasSudo, err := userHasSudo(u.Username)
 		if err != nil {
 			ctx.Logger.Warning("Failed to check sudo privileges: %v", err)
@@ -360,6 +365,17 @@ func (f *Feature) DetectCurrentState(ctx *features.ExecutionContext) (map[string
 			ctx.Logger.Warning("Failed to check sudo group membership: %v", err)
 		}
 		state["in_sudo_group"] = inSudoGroup
+
+		// Check if sudo is passwordless - we have root privileges so this should work
+		hasPasswordlessSudo, sudoersFile, err := checkPasswordlessSudoWithSource(u.Username)
+		if err != nil {
+			ctx.Logger.Warning("Failed to check passwordless sudo: %v", err)
+			state["has_passwordless_sudo"] = false
+			state["sudoers_file"] = ""
+		} else {
+			state["has_passwordless_sudo"] = hasPasswordlessSudo
+			state["sudoers_file"] = sudoersFile
+		}
 	} else {
 		// User does not exist
 		state["user_exists"] = false
@@ -416,8 +432,19 @@ func (f *Feature) DisplayCurrentState(ctx *features.ExecutionContext, state map[
 		}
 
 		// Sudo privileges
+		hasPasswordlessSudo, _ := state["has_passwordless_sudo"].(bool)
+		sudoersFile, _ := state["sudoers_file"].(string)
 		if hasSudo {
-			fmt.Printf("  \033[1;34m%s\033[0m: \033[1;32m✓ Enabled\033[0m\n", "Sudo Access")
+			if hasPasswordlessSudo {
+				fmt.Printf("  \033[1;34m%s\033[0m: \033[1;32m✓ Passwordless\033[0m", "Sudo Access")
+			} else {
+				fmt.Printf("  \033[1;34m%s\033[0m: \033[1;32m✓ With Password\033[0m", "Sudo Access")
+			}
+			// Show source file if available
+			if sudoersFile != "" {
+				fmt.Printf(" \033[90m- %s\033[0m", sudoersFile)
+			}
+			fmt.Println()
 		} else if inSudoGroup {
 			fmt.Printf("  \033[1;34m%s\033[0m: \033[1;33m⚠ In sudo group but not active\033[0m\n", "Sudo Access")
 			fmt.Printf("    \033[90mYou may need to log out and log back in for sudo privileges to take effect\033[0m\n")
@@ -553,4 +580,66 @@ func (f *Feature) createDarwinUser(ctx *features.ExecutionContext, username, she
 	}
 
 	return nil
+}
+
+// checkPasswordlessSudoWithSource checks if a user has passwordless sudo privileges and returns the source file
+func checkPasswordlessSudoWithSource(username string) (bool, string, error) {
+	// Check if running with sufficient privileges to read sudoers files
+	if os.Geteuid() != 0 {
+		return false, "", fmt.Errorf("checking passwordless sudo requires root privileges. Please run with sudo")
+	}
+
+	// List of sudoers files to check
+	sudoersFiles := []string{
+		filepath.Join("/etc/sudoers.d", username),
+		"/etc/sudoers",
+	}
+
+	// Also check for common sudoers.d files
+	sudoersDFiles := []string{
+		"/etc/sudoers.d/90-cloud-init-users",
+		"/etc/sudoers.d/admin",
+		"/etc/sudoers.d/wheel",
+	}
+	sudoersFiles = append(sudoersFiles, sudoersDFiles...)
+
+	// Check each sudoers file
+	for _, file := range sudoersFiles {
+		if _, err := os.Stat(file); err != nil {
+			continue // File doesn't exist, skip
+		}
+
+		// Read the file - we have root privileges so this should work
+		content, err := os.ReadFile(file)
+		if err != nil {
+			// Log the error but continue checking other files
+			continue
+		}
+
+		// Check if file contains NOPASSWD for this user
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "#") {
+				continue // Skip comments
+			}
+
+			// Check for user-specific NOPASSWD rules
+			if strings.Contains(line, username) && strings.Contains(line, "NOPASSWD") {
+				return true, file, nil
+			}
+
+			// Check for group-based NOPASSWD rules
+			if (strings.Contains(line, "%sudo") || strings.Contains(line, "%admin") || strings.Contains(line, "%wheel")) &&
+				strings.Contains(line, "NOPASSWD") {
+				// Check if user is in the group
+				inGroup, err := isUserInSudoGroup(username)
+				if err == nil && inGroup {
+					return true, file, nil
+				}
+			}
+		}
+	}
+
+	return false, "", nil
 }

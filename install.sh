@@ -13,9 +13,21 @@ RED='\033[0;31m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
+# Constants
+GITHUB_REPO="teomyth/iniq"
+GITHUB_RELEASES_BASE_URL="https://github.com/${GITHUB_REPO}/releases"
+GITHUB_API_BASE_URL="https://api.github.com/repos/${GITHUB_REPO}"
+BINARY_NAME="iniq"
+DEFAULT_INSTALL_PATH="/usr/local/bin/${BINARY_NAME}"
+
 # Default values
-DEFAULT_DOWNLOAD_BASE_URL="https://github.com/teomyth/iniq/releases/latest/download"
-GITHUB_API_URL="https://api.github.com/repos/teomyth/iniq/releases/latest"
+DEFAULT_DOWNLOAD_BASE_URL="${GITHUB_RELEASES_BASE_URL}/latest/download"
+GITHUB_API_URL="${GITHUB_API_BASE_URL}/releases/latest"
+
+# Helper function to get binary filename pattern
+get_binary_filename() {
+    echo "${BINARY_NAME}-${OS}-${ARCH}.tar.gz"
+}
 
 # Print banner
 print_banner() {
@@ -95,24 +107,40 @@ get_latest_version() {
 # Get download URL based on platform
 get_download_url() {
     local base_url="${1:-$DEFAULT_DOWNLOAD_BASE_URL}"
-    echo "${base_url}/iniq-${OS}-${ARCH}.tar.gz"
+    echo "${base_url}/$(get_binary_filename)"
+}
+
+# Check if we're in development environment
+is_development_environment() {
+    # Check if the base URL is not the default GitHub releases URL
+    if [[ "$DEFAULT_DOWNLOAD_BASE_URL" != "${GITHUB_RELEASES_BASE_URL}/latest/download" ]]; then
+        return 0  # true - we're in development
+    fi
+    return 1  # false - we're not in development
 }
 
 # Get download URL with version fallback
 get_download_url_with_fallback() {
     local base_url="${1:-$DEFAULT_DOWNLOAD_BASE_URL}"
 
-    # First try to get the latest version from API
+    # Check if we're in development environment
+    if is_development_environment; then
+        echo -e "${BLUE}→${NC} Development environment detected, using local server" >&2
+        echo "${base_url}/$(get_binary_filename)"
+        return 0
+    fi
+
+    # Production environment - try to get the latest version from API
     echo -e "${BLUE}→${NC} Checking latest version from GitHub API..." >&2
     local latest_version=$(get_latest_version)
 
     if [[ -n "$latest_version" ]]; then
         echo -e "${BLUE}→${NC} Found latest version: ${BOLD}$latest_version${NC}" >&2
-        local versioned_url="https://github.com/teomyth/iniq/releases/download/${latest_version}/iniq-${OS}-${ARCH}.tar.gz"
+        local versioned_url="${GITHUB_RELEASES_BASE_URL}/download/${latest_version}/$(get_binary_filename)"
         echo "$versioned_url"
     else
         echo -e "${YELLOW}→${NC} Could not get version from API, using latest URL" >&2
-        echo "${base_url}/iniq-${OS}-${ARCH}.tar.gz"
+        echo "${base_url}/$(get_binary_filename)"
     fi
 }
 
@@ -168,7 +196,7 @@ download_file() {
 # Download binary with fallback
 download_binary() {
     local download_url="$1"
-    local output_file="${2:-iniq}"
+    local output_file="${2:-${BINARY_NAME}}"
 
     # Create a temporary file for download
     local temp_output_file="${output_file}.tmp.tar.gz"
@@ -230,7 +258,7 @@ download_binary() {
     echo -e "${BLUE}→${NC} Extracting archive..."
     if tar -xzf "$temp_output_file" -C "$extract_dir"; then
         # Find the binary in the extracted directory
-        local binary_path=$(find "$extract_dir" -name "iniq" -type f)
+        local binary_path=$(find "$extract_dir" -name "${BINARY_NAME}" -type f)
 
         if [[ -n "$binary_path" ]]; then
             echo -e "${GREEN}✓${NC} Archive extracted successfully"
@@ -256,8 +284,8 @@ download_binary() {
 
 # Install binary to system path
 install_binary() {
-    local binary_file="${1:-iniq}"
-    local install_path="${2:-/usr/local/bin/iniq}"
+    local binary_file="${1:-${BINARY_NAME}}"
+    local install_path="${2:-${DEFAULT_INSTALL_PATH}}"
 
     # Create a temporary file for installation
     local temp_install_file="${install_path}.tmp"
@@ -317,14 +345,14 @@ install_iniq() {
     echo -e "${BLUE}→${NC} Detected platform: ${BOLD}$OS-$ARCH${NC}"
 
     # Define install path
-    INSTALL_PATH="/usr/local/bin/iniq"
+    INSTALL_PATH="${DEFAULT_INSTALL_PATH}"
 
     # Download binary
     print_step 2 3 "Installing Binary"
-    download_binary "${DOWNLOAD_URL}" "${TEMP_DIR}/iniq"
+    download_binary "${DOWNLOAD_URL}" "${TEMP_DIR}/${BINARY_NAME}"
 
     # Install binary
-    install_binary "${TEMP_DIR}/iniq" "${INSTALL_PATH}"
+    install_binary "${TEMP_DIR}/${BINARY_NAME}" "${INSTALL_PATH}"
 
     # Print success message
     print_step 3 3 "Finalizing Installation"

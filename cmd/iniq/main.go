@@ -34,22 +34,24 @@ var (
 
 // Command line flags
 var (
-	cfgFile     string
-	verbose     bool
-	quiet       bool
-	yes         bool
-	dryRun      bool
-	skipSudo    bool
-	username    string
-	keys        []string
-	sshNoRoot   bool
-	sshNoPass   bool
-	sudoNoPass  bool
-	showStatus  bool
-	backupFiles bool
-	allSecurity bool
-	setPassword bool
-	noPassword  bool
+	cfgFile         string
+	verbose         bool
+	quiet           bool
+	yes             bool
+	dryRun          bool
+	skipSudo        bool
+	username        string
+	keys            []string
+	sshRootLogin    string
+	sshPasswordAuth string
+	sshNoRoot       bool
+	sshNoPass       bool
+	sudoNoPass      bool
+	showStatus      bool
+	backupFiles     bool
+	allSecurity     bool
+	setPassword     bool
+	noPassword      bool
 )
 
 // versionCmd represents the version command
@@ -236,6 +238,8 @@ SSH access, security configurations, password policy enforcement, and system har
 		// Add command line flags that might not be in viper
 		options["user"] = username
 		options["keys"] = keys
+		options["ssh-root-login"] = sshRootLogin
+		options["ssh-password-auth"] = sshPasswordAuth
 		options["ssh-no-root"] = sshNoRoot
 		options["ssh-no-password"] = sshNoPass
 		options["sudo-nopasswd"] = sudoNoPass
@@ -276,87 +280,84 @@ SSH access, security configurations, password policy enforcement, and system har
 			sortedFeatures := features.SortFeaturesByPriority(allFeatures)
 
 			// Display current state for each feature in a simplified format
-			// Create a new logger for indented output
-			indentedLogger := logger.New(verbose, quiet)
-
-			// Create a new context with the indented logger
-			indentedCtx := &features.ExecutionContext{
-				Options:     options,
-				Logger:      indentedLogger,
-				DryRun:      true, // Don't make any changes
-				Interactive: true, // Enable interactive mode for status display
-				Verbose:     verbose,
-			}
 
 			// Display title with color - no top margin
 			fmt.Println("\033[1;36mINIQ SYSTEM STATUS\033[0m")
 
-			// User status - using better icons
-			fmt.Println("\033[1;36m● User Status\033[0m")
+			// Check current privileges
+			isRoot := os.Geteuid() == 0
+			hasPrivileges := isRoot || userInSudoGroup()
+
+			// 1. User Account (most important - identity information)
 			for _, feature := range sortedFeatures {
 				if feature.Name() == "user" {
 					// Detect current state
 					state, err := feature.DetectCurrentState(ctx)
 					if err != nil {
-						log.Warning("Failed to detect state for %s: %v", feature.Name(), err)
+						fmt.Println("\033[1;36m● User Account\033[0m")
+						fmt.Printf("  \033[1;31m✗ Error: %v\033[0m\n", err)
 						continue
 					}
 
-					// Display current state with the indented logger
-					feature.DisplayCurrentState(indentedCtx, state)
+					// Get sudoers file for header
+					sudoersFile, _ := state["sudoers_file"].(string)
+					if sudoersFile != "" {
+						fmt.Printf("\033[1;36m● User Account\033[0m \033[90m(%s)\033[0m\n", sudoersFile)
+					} else {
+						fmt.Println("\033[1;36m● User Account\033[0m")
+					}
+
+					// Display simplified user status
+					displaySimplifiedUserStatus(state)
 				}
 			}
 			fmt.Println()
 
-			// SSH key status
+			// 2. SSH Security (second most important - security configuration)
+			for _, feature := range sortedFeatures {
+				if feature.Name() == "security" {
+					// Detect current state
+					state, err := feature.DetectCurrentState(ctx)
+					if err != nil {
+						fmt.Println("\033[1;36m● SSH Security\033[0m")
+						fmt.Printf("  \033[1;31m✗ Error: %v\033[0m\n", err)
+						continue
+					}
+
+					// Get SSH config file for header
+					sshConfigFile, _ := state["ssh_config_file"].(string)
+					if sshConfigFile != "" {
+						fmt.Printf("\033[1;36m● SSH Security\033[0m \033[90m(%s)\033[0m\n", sshConfigFile)
+					} else {
+						fmt.Println("\033[1;36m● SSH Security\033[0m")
+					}
+
+					// Display simplified security status
+					displaySimplifiedSecurityStatus(state, hasPrivileges)
+				}
+			}
+			fmt.Println()
+
+			// 3. SSH Keys (third most important - key management)
 			fmt.Println("\033[1;36m● SSH Keys\033[0m")
 			for _, feature := range sortedFeatures {
 				if feature.Name() == "ssh" {
 					// Detect current state
 					state, err := feature.DetectCurrentState(ctx)
 					if err != nil {
-						log.Warning("Failed to detect state for %s: %v", feature.Name(), err)
+						log.Warning("Failed to detect SSH keys state: %v", err)
 						continue
 					}
 
-					// Display current state with the indented logger
-					feature.DisplayCurrentState(indentedCtx, state)
+					// Display simplified SSH keys status
+					displaySimplifiedSSHKeysStatus(state)
 				}
 			}
 			fmt.Println()
 
-			// Sudo status
-			fmt.Println("\033[1;36m● Sudo Configuration\033[0m")
-			for _, feature := range sortedFeatures {
-				if feature.Name() == "sudo" {
-					// Detect current state
-					state, err := feature.DetectCurrentState(ctx)
-					if err != nil {
-						log.Warning("Failed to detect state for %s: %v", feature.Name(), err)
-						continue
-					}
-
-					// Display current state with the indented logger
-					feature.DisplayCurrentState(indentedCtx, state)
-				}
-			}
-			fmt.Println()
-
-			// Security status
-			fmt.Println("\033[1;36m● SSH Security Settings\033[0m")
-			for _, feature := range sortedFeatures {
-				if feature.Name() == "security" {
-					// Detect current state
-					state, err := feature.DetectCurrentState(ctx)
-					if err != nil {
-						log.Warning("Failed to detect state for %s: %v", feature.Name(), err)
-						continue
-					}
-
-					// Display current state with the indented logger
-					feature.DisplayCurrentState(indentedCtx, state)
-				}
-			}
+			// 4. System Privileges (fourth most important - privilege status)
+			fmt.Println("\033[1;36m● System Privileges\033[0m")
+			displaySystemPrivileges(isRoot, hasPrivileges)
 
 			return
 		}
@@ -755,6 +756,7 @@ SSH access, security configurations, password policy enforcement, and system har
 							feature.DisplayCurrentState(stateCtx, state)
 							securityState = state
 						}
+						break
 					}
 				}
 
@@ -767,17 +769,53 @@ SSH access, security configurations, password policy enforcement, and system har
 					passwordAuthDisabled, _ = securityState["password_auth_disabled"].(bool)
 				}
 
-				// Set default values based on current state
-				var rootLoginDefault bool = rootLoginDisabled
-				var passwordAuthDefault bool = passwordAuthDisabled
+				// Use the new state toggle function for root login
+				rootLoginResult := utils.PromptStateToggle(utils.StateToggleConfig{
+					FeatureName:  "SSH root login",
+					CurrentState: !rootLoginDisabled, // Invert because we track "disabled" but function expects "enabled"
+				})
 
-				// Use utility function, default value based on current state
-				sshNoRoot = utils.PromptYesNo("Disable SSH root login?", rootLoginDefault)
-				options["ssh-no-root"] = sshNoRoot
+				// Use the new state toggle function for password authentication
+				passwordAuthResult := utils.PromptStateToggle(utils.StateToggleConfig{
+					FeatureName:  "SSH password authentication",
+					CurrentState: !passwordAuthDisabled, // Invert because we track "disabled" but function expects "enabled"
+				})
 
-				// Use utility function, default value based on current state
-				sshNoPass = utils.PromptYesNo("Disable SSH password authentication?", passwordAuthDefault)
-				options["ssh-no-password"] = sshNoPass
+				// Convert actions to the expected format and track changes
+				switch rootLoginResult.Action {
+				case utils.StateToggleEnable:
+					sshNoRoot = false
+					options["ssh-root-login"] = "enable"
+				case utils.StateToggleDisable:
+					sshNoRoot = true
+					options["ssh-root-login"] = "disable"
+				case utils.StateToggleKeep:
+					sshNoRoot = rootLoginDisabled // Keep current state
+				}
+
+				switch passwordAuthResult.Action {
+				case utils.StateToggleEnable:
+					sshNoPass = false
+					options["ssh-password-auth"] = "enable"
+				case utils.StateToggleDisable:
+					sshNoPass = true
+					options["ssh-password-auth"] = "disable"
+				case utils.StateToggleKeep:
+					sshNoPass = passwordAuthDisabled // Keep current state
+				}
+
+				// Set the old-style options for backward compatibility
+				// Only include in active features if there are actual changes
+				hasSSHChanges := rootLoginResult.HasChange || passwordAuthResult.HasChange
+				if hasSSHChanges {
+					options["ssh-no-root"] = sshNoRoot
+					options["ssh-no-password"] = sshNoPass
+					// Mark that we have SSH security changes
+					options["ssh-security-has-changes"] = true
+				} else {
+					// Mark that we don't have SSH security changes
+					options["ssh-security-has-changes"] = false
+				}
 			} else {
 				fmt.Printf("\n\033[0;34m[4/4]\033[0m \033[1mSSH Security Configuration\033[0m\n")
 				fmt.Printf("────────────────────────────────────────\n")
@@ -793,11 +831,7 @@ SSH access, security configurations, password policy enforcement, and system har
 				return
 			}
 
-			// Display operation summary and request confirmation
-			fmt.Printf("\nSummary of Actions\n")
-			fmt.Printf("-----------------\n")
-
-			// Calculate total number of operations
+			// Calculate total number of operations first
 			operationCount := 0
 
 			// Check if user already exists
@@ -822,9 +856,22 @@ SSH access, security configurations, password policy enforcement, and system har
 			if !skipSudo && !sudoAlreadyConfigured {
 				operationCount++
 			}
-			if sshNoRoot || sshNoPass {
+			// Only count SSH security if there are actual changes
+			sshSecurityHasChanges, _ := options["ssh-security-has-changes"].(bool)
+			if sshSecurityHasChanges {
 				operationCount++
 			}
+
+			// Check if we have any operations to perform
+			if operationCount == 0 {
+				// No operations needed
+				fmt.Printf("\n✓ No changes needed - all settings already match your preferences\n")
+				return
+			}
+
+			// Display operation summary header only if we have operations
+			fmt.Printf("\nSummary of Actions\n")
+			fmt.Printf("-----------------\n")
 
 			// Display operation summary
 			operationIndex := 1
@@ -874,25 +921,37 @@ SSH access, security configurations, password policy enforcement, and system har
 				fmt.Println()
 			}
 
-			if sshNoRoot || sshNoPass {
+			// Only show SSH security if there are actual changes
+			sshSecurityHasChanges, _ = options["ssh-security-has-changes"].(bool)
+			if sshSecurityHasChanges {
 				fmt.Printf("[%d/%d] SSH Security Configuration\n", operationIndex, operationCount)
-				if sshNoRoot {
-					fmt.Printf("  - Disable root login via SSH\n")
-				} else {
-					fmt.Printf("  - Keep root login via SSH enabled\n")
+
+				// Show only the changes that will be made
+				rootLoginResult, hasRootResult := options["ssh-root-login"].(string)
+				passwordAuthResult, hasPasswordResult := options["ssh-password-auth"].(string)
+
+				if hasRootResult {
+					if rootLoginResult == "enable" {
+						fmt.Printf("  - Enable root login via SSH\n")
+					} else if rootLoginResult == "disable" {
+						fmt.Printf("  - Disable root login via SSH\n")
+					}
 				}
 
-				if sshNoPass {
-					fmt.Printf("  - Disable password authentication via SSH\n")
-				} else {
-					fmt.Printf("  - Keep password authentication via SSH enabled\n")
+				if hasPasswordResult {
+					if passwordAuthResult == "enable" {
+						fmt.Printf("  - Enable password authentication via SSH\n")
+					} else if passwordAuthResult == "disable" {
+						fmt.Printf("  - Disable password authentication via SSH\n")
+					}
 				}
+
 				_ = operationIndex // Increment not needed here
 				fmt.Println()
 			}
 
-			// Use utility function, default value is true (Y)
-			proceed := utils.PromptYesNo("Press Enter to proceed or type 'n' to cancel", true)
+			// Ask for confirmation (we know operationCount > 0 at this point)
+			proceed := utils.PromptYesNo("Do you want to proceed with these operations?", true)
 			if !proceed {
 				fmt.Println("Operation cancelled by user.")
 				return
@@ -959,11 +1018,10 @@ SSH access, security configurations, password policy enforcement, and system har
 					title = "Set up sudo permissions"
 				}
 			case "security":
-				// Check if SSH security settings are specified
-				sshNoRoot, hasNoRoot := options["ssh-no-root"].(bool)
-				sshNoPass, hasNoPass := options["ssh-no-password"].(bool)
-				if (!hasNoRoot || !sshNoRoot) && (!hasNoPass || !sshNoPass) {
-					// No SSH security settings specified
+				// Check if SSH security has actual changes
+				sshSecurityHasChanges, _ := options["ssh-security-has-changes"].(bool)
+				if !sshSecurityHasChanges {
+					// No SSH security changes needed
 					shouldAdd = false
 				} else {
 					title = "Configure SSH security settings"
@@ -1019,11 +1077,10 @@ SSH access, security configurations, password policy enforcement, and system har
 					title = "Setting up sudo permissions"
 				}
 			case "security":
-				// Check if SSH security settings are specified
-				sshNoRoot, hasNoRoot := options["ssh-no-root"].(bool)
-				sshNoPass, hasNoPass := options["ssh-no-password"].(bool)
-				if (!hasNoRoot || !sshNoRoot) && (!hasNoPass || !sshNoPass) {
-					// No SSH security settings specified
+				// Check if SSH security has actual changes
+				sshSecurityHasChanges, _ := options["ssh-security-has-changes"].(bool)
+				if !sshSecurityHasChanges {
+					// No SSH security changes needed
 					shouldExecute = false
 				} else {
 					title = "Configuring SSH security settings"
@@ -1361,8 +1418,10 @@ func coloredHelpFunction(cmd *cobra.Command, args []string) {
 	fmt.Printf("  -k, --key strings           SSH key sources (github:user, gitlab:user, url:URL, file:path)\n")
 	fmt.Printf("  -p, --password              Set password for the user (interactive prompt)\n")
 	fmt.Printf("  --no-pass                   Create user without password (skip password setup)\n")
-	fmt.Printf("  --ssh-no-root               Disable SSH root login\n")
-	fmt.Printf("  --ssh-no-password           Disable SSH password authentication\n")
+	fmt.Printf("  --ssh-root-login string     Configure SSH root login (yes|enable|true|1|y|t|on or no|disable|false|0|n|f|off)\n")
+	fmt.Printf("  --ssh-password-auth string  Configure SSH password authentication (yes|enable|true|1|y|t|on or no|disable|false|0|n|f|off)\n")
+	fmt.Printf("  --ssh-no-root               Disable SSH root login (deprecated, use --ssh-root-login=disable)\n")
+	fmt.Printf("  --ssh-no-password           Disable SSH password authentication (deprecated, use --ssh-password-auth=disable)\n")
 	fmt.Printf("  --sudo-nopasswd             Configure sudo without password (default true)\n")
 
 	fmt.Printf("\n\033[1;36mSecurity Enhancement Flags:\033[0m\n")
@@ -1437,8 +1496,10 @@ func init() {
 	// Core Feature Flags - directly modify system functionality
 	rootCmd.Flags().StringVarP(&username, "user", "u", "", "username to create or configure")
 	rootCmd.Flags().StringSliceVarP(&keys, "key", "k", []string{}, "SSH key sources (github:user, gitlab:user, url:URL, file:path)")
-	rootCmd.Flags().BoolVar(&sshNoRoot, "ssh-no-root", false, "disable SSH root login")
-	rootCmd.Flags().BoolVar(&sshNoPass, "ssh-no-password", false, "disable SSH password authentication")
+	rootCmd.Flags().StringVar(&sshRootLogin, "ssh-root-login", "", "configure SSH root login (yes|enable|true|1|y|t|on or no|disable|false|0|n|f|off)")
+	rootCmd.Flags().StringVar(&sshPasswordAuth, "ssh-password-auth", "", "configure SSH password authentication (yes|enable|true|1|y|t|on or no|disable|false|0|n|f|off)")
+	rootCmd.Flags().BoolVar(&sshNoRoot, "ssh-no-root", false, "disable SSH root login (deprecated, use --ssh-root-login=disable)")
+	rootCmd.Flags().BoolVar(&sshNoPass, "ssh-no-password", false, "disable SSH password authentication (deprecated, use --ssh-password-auth=disable)")
 	rootCmd.Flags().BoolVar(&sudoNoPass, "sudo-nopasswd", true, "configure sudo without password")
 	rootCmd.Flags().BoolVarP(&setPassword, "password", "p", false, "set password for the user (interactive prompt)")
 	rootCmd.Flags().BoolVar(&noPassword, "no-pass", false, "create user without password (skip password setup)")
@@ -1463,6 +1524,8 @@ func init() {
 	// Bind flags to viper
 	_ = viper.BindPFlag("user", rootCmd.Flags().Lookup("user"))
 	_ = viper.BindPFlag("keys", rootCmd.Flags().Lookup("key"))
+	_ = viper.BindPFlag("ssh-root-login", rootCmd.Flags().Lookup("ssh-root-login"))
+	_ = viper.BindPFlag("ssh-password-auth", rootCmd.Flags().Lookup("ssh-password-auth"))
 	_ = viper.BindPFlag("ssh-no-root", rootCmd.Flags().Lookup("ssh-no-root"))
 	_ = viper.BindPFlag("ssh-no-password", rootCmd.Flags().Lookup("ssh-no-password"))
 	_ = viper.BindPFlag("sudo-nopasswd", rootCmd.Flags().Lookup("sudo-nopasswd"))
@@ -1864,4 +1927,150 @@ func main() {
 
 	// Execute the root command
 	Execute()
+}
+
+// displaySystemPrivileges shows current system privilege status
+func displaySystemPrivileges(isRoot bool, hasPrivileges bool) {
+	// Current privilege level
+	fmt.Printf("  \033[1;34m%s\033[0m: ", "Current Level")
+	if isRoot {
+		fmt.Printf("\033[1;32m✓ Root\033[0m")
+		sudoUser := os.Getenv("SUDO_USER")
+		if sudoUser != "" {
+			fmt.Printf(" \033[90m(via sudo from %s)\033[0m", sudoUser)
+		}
+		fmt.Println()
+	} else if hasPrivileges {
+		fmt.Printf("\033[1;32m✓ Sudo Access\033[0m\n")
+	} else {
+		fmt.Printf("\033[1;33m⚠ Limited\033[0m\n")
+		fmt.Printf("    \033[90mSome operations require elevated privileges\033[0m\n")
+	}
+
+	// Capability summary
+	fmt.Printf("  \033[1;34m%s\033[0m: ", "Capabilities")
+	if hasPrivileges {
+		fmt.Printf("\033[1;32m✓ Full system configuration\033[0m\n")
+	} else {
+		fmt.Printf("\033[1;33m⚠ User-level configuration only\033[0m\n")
+	}
+}
+
+// displaySimplifiedSecurityStatus shows simplified SSH security status
+func displaySimplifiedSecurityStatus(state map[string]any, _ bool) {
+	sshConfigExists, _ := state["ssh_config_exists"].(bool)
+
+	if !sshConfigExists {
+		fmt.Printf("  \033[1;33m⚠ SSH not configured\033[0m\n")
+		fmt.Printf("    \033[90mSSH daemon configuration not found\033[0m\n")
+		return
+	}
+
+	rootLoginDisabled, _ := state["root_login_disabled"].(bool)
+	passwordAuthDisabled, _ := state["password_auth_disabled"].(bool)
+	permitRootLoginValue, _ := state["permit_root_login_value"].(string)
+	passwordAuthValue, _ := state["password_auth_value"].(string)
+	permitRootLoginExplicit, _ := state["permit_root_login_explicit"].(bool)
+	passwordAuthExplicit, _ := state["password_auth_explicit"].(bool)
+
+	// Root Login status with proper alignment
+	fmt.Printf("  %-15s: ", "Root Login")
+	if rootLoginDisabled {
+		fmt.Printf("\033[1;32m✓ Disabled\033[0m")
+		if permitRootLoginValue == "prohibit-password" {
+			fmt.Printf(" \033[90m(key-only)\033[0m")
+		}
+	} else {
+		fmt.Printf("\033[1;31m✗ Enabled\033[0m")
+	}
+
+	// Show if using defaults
+	if permitRootLoginValue != "" && permitRootLoginValue != "unknown" && !permitRootLoginExplicit {
+		fmt.Printf(" \033[90m(default)\033[0m")
+	}
+	fmt.Println()
+
+	// Password Authentication status with proper alignment
+	fmt.Printf("  %-15s: ", "Password Auth")
+	if passwordAuthDisabled {
+		fmt.Printf("\033[1;32m✓ Disabled\033[0m")
+	} else {
+		fmt.Printf("\033[1;31m✗ Enabled\033[0m")
+	}
+
+	// Show if using defaults
+	if passwordAuthValue != "" && passwordAuthValue != "unknown" && !passwordAuthExplicit {
+		fmt.Printf(" \033[90m(default)\033[0m")
+	}
+	fmt.Println()
+}
+
+// displaySimplifiedUserStatus shows simplified user account status
+func displaySimplifiedUserStatus(state map[string]any) {
+	username := state["username"].(string)
+	userExists, _ := state["user_exists"].(bool)
+	isCurrentUser, _ := state["is_current_user"].(bool)
+
+	// User identity with proper alignment
+	fmt.Printf("  %-15s: \033[0;37m%s\033[0m", "Username", username)
+	if isCurrentUser {
+		fmt.Printf(" \033[90m(current)\033[0m")
+	}
+	fmt.Println()
+
+	// User status with proper alignment
+	fmt.Printf("  %-15s: ", "Account Status")
+	if userExists {
+		fmt.Printf("\033[1;32m✓ Active\033[0m\n")
+
+		// Sudo access with proper alignment (no file path since it's in header)
+		hasSudo, _ := state["has_sudo"].(bool)
+		hasPasswordlessSudo, _ := state["has_passwordless_sudo"].(bool)
+
+		fmt.Printf("  %-15s: ", "Sudo Access")
+		if hasSudo {
+			if hasPasswordlessSudo {
+				fmt.Printf("\033[1;32m✓ Passwordless\033[0m")
+			} else {
+				fmt.Printf("\033[1;32m✓ With Password\033[0m")
+			}
+			fmt.Println()
+		} else {
+			fmt.Printf("\033[1;31m✗ None\033[0m\n")
+		}
+	} else {
+		fmt.Printf("\033[1;31m✗ Not Found\033[0m\n")
+	}
+}
+
+// displaySimplifiedSSHKeysStatus shows simplified SSH keys status
+func displaySimplifiedSSHKeysStatus(state map[string]any) {
+	username := state["username"].(string)
+	sshDirExists, _ := state["ssh_dir_exists"].(bool)
+	authKeysExists, _ := state["auth_keys_exists"].(bool)
+	existingKeyCount, _ := state["existing_key_count"].(int)
+
+	// SSH setup status with proper alignment
+	fmt.Printf("  %-15s: \033[0;37m%s\033[0m\n", "User", username)
+
+	// Determine SSH status and show it directly
+	fmt.Printf("  %-15s: ", "Authorized Keys")
+	if !sshDirExists {
+		fmt.Printf("\033[1;33m⚠ Not Configured\033[0m\n")
+		fmt.Printf("    \033[90mSSH directory not found\033[0m\n")
+		return
+	}
+
+	if !authKeysExists {
+		fmt.Printf("\033[1;33m⚠ No Keys\033[0m\n")
+		fmt.Printf("    \033[90mSSH directory exists but no authorized keys\033[0m\n")
+		return
+	}
+
+	// Key count
+	if existingKeyCount > 0 {
+		fmt.Printf("\033[1;32m✓ %d key(s)\033[0m\n", existingKeyCount)
+	} else {
+		fmt.Printf("\033[1;31m✗ None\033[0m\n")
+	}
 }

@@ -18,6 +18,9 @@ test-*.sh
 # Integration test binaries
 integration/iniq
 
+# Main binary
+iniq
+
 # Dependency directories (remove the comment below to include it)
 # vendor/
 

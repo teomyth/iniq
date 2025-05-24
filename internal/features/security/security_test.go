@@ -143,6 +143,63 @@ func TestValidateOptions(t *testing.T) {
 			},
 			expectError: false,
 		},
+		// New parameter tests
+		{
+			name: "With ssh-root-login enable",
+			options: map[string]any{
+				"ssh-root-login": "enable",
+			},
+			expectError: false,
+		},
+		{
+			name: "With ssh-root-login disable",
+			options: map[string]any{
+				"ssh-root-login": "disable",
+			},
+			expectError: false,
+		},
+		{
+			name: "With ssh-root-login yes",
+			options: map[string]any{
+				"ssh-root-login": "yes",
+			},
+			expectError: false,
+		},
+		{
+			name: "With ssh-root-login no",
+			options: map[string]any{
+				"ssh-root-login": "no",
+			},
+			expectError: false,
+		},
+		{
+			name: "With ssh-root-login invalid",
+			options: map[string]any{
+				"ssh-root-login": "invalid",
+			},
+			expectError: true,
+		},
+		{
+			name: "With ssh-password-auth enable",
+			options: map[string]any{
+				"ssh-password-auth": "enable",
+			},
+			expectError: false,
+		},
+		{
+			name: "With ssh-password-auth disable",
+			options: map[string]any{
+				"ssh-password-auth": "disable",
+			},
+			expectError: false,
+		},
+		{
+			name: "With ssh-password-auth invalid",
+			options: map[string]any{
+				"ssh-password-auth": "invalid",
+			},
+			expectError: true,
+		},
 	}
 
 	// Run tests
@@ -347,6 +404,94 @@ func TestDisablePasswordAuth(t *testing.T) {
 			result := feature.disablePasswordAuth(tc.content)
 			if result != tc.expected {
 				t.Errorf("disablePasswordAuth() = %q, expected %q", result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestEnableRootLogin(t *testing.T) {
+	// Test the enableRootLogin function
+	osInfo, _ := osdetect.Detect()
+	feature := New(osInfo)
+
+	// Test cases
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{
+			name:     "Empty content",
+			content:  "",
+			expected: "# Added by INIQ (Previous setting: none)\nPermitRootLogin yes",
+		},
+		{
+			name:     "Content without PermitRootLogin",
+			content:  "# SSH config\nPasswordAuthentication no\n",
+			expected: "# SSH config\nPasswordAuthentication no\n# Added by INIQ (Previous setting: none)\nPermitRootLogin yes",
+		},
+		{
+			name:     "Content with PermitRootLogin no",
+			content:  "# SSH config\nPermitRootLogin no\nPasswordAuthentication no\n",
+			expected: "# SSH config\nPasswordAuthentication no\n# Modified by INIQ (Previous setting: PermitRootLogin no)\nPermitRootLogin yes",
+		},
+		{
+			name:     "Content with PermitRootLogin yes (already enabled)",
+			content:  "# SSH config\nPermitRootLogin yes\nPasswordAuthentication no\n",
+			expected: "# SSH config\nPasswordAuthentication no\n# Modified by INIQ (Previous setting: PermitRootLogin yes)\nPermitRootLogin yes",
+		},
+	}
+
+	// Run tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := feature.enableRootLogin(tc.content)
+			if result != tc.expected {
+				t.Errorf("enableRootLogin() = %q, expected %q", result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestEnablePasswordAuth(t *testing.T) {
+	// Test the enablePasswordAuth function
+	osInfo, _ := osdetect.Detect()
+	feature := New(osInfo)
+
+	// Test cases
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{
+			name:     "Empty content",
+			content:  "",
+			expected: "# Added by INIQ (Previous setting: none)\nPasswordAuthentication yes",
+		},
+		{
+			name:     "Content without PasswordAuthentication",
+			content:  "# SSH config\nPermitRootLogin no\n",
+			expected: "# SSH config\nPermitRootLogin no\n# Added by INIQ (Previous setting: none)\nPasswordAuthentication yes",
+		},
+		{
+			name:     "Content with PasswordAuthentication no",
+			content:  "# SSH config\nPasswordAuthentication no\nPermitRootLogin no\n",
+			expected: "# SSH config\nPermitRootLogin no\n# Modified by INIQ (Previous setting: PasswordAuthentication no)\nPasswordAuthentication yes",
+		},
+		{
+			name:     "Content with PasswordAuthentication yes (already enabled)",
+			content:  "# SSH config\nPasswordAuthentication yes\nPermitRootLogin no\n",
+			expected: "# SSH config\nPermitRootLogin no\n# Modified by INIQ (Previous setting: PasswordAuthentication yes)\nPasswordAuthentication yes",
+		},
+	}
+
+	// Run tests
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := feature.enablePasswordAuth(tc.content)
+			if result != tc.expected {
+				t.Errorf("enablePasswordAuth() = %q, expected %q", result, tc.expected)
 			}
 		})
 	}
