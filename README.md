@@ -27,7 +27,7 @@ INIQ officially supports **Linux only** for production use:
 
 ### Installation
 
-#### Option 1: Using the install script (Recommended)
+#### Using the install script
 
 Install INIQ globally using curl:
 
@@ -39,44 +39,6 @@ Or using wget:
 
 ```bash
 wget -qO- https://raw.githubusercontent.com/teomyth/iniq/main/install.sh | sudo bash
-```
-
-#### Option 2: Manual installation
-
-For Linux (AMD64) using curl:
-
-```bash
-curl -L https://github.com/teomyth/iniq/releases/latest/download/iniq-linux-amd64.tar.gz -o iniq.tar.gz
-tar -xzf iniq.tar.gz
-chmod +x iniq
-sudo mv iniq /usr/local/bin/
-```
-
-For Linux (AMD64) using wget:
-
-```bash
-wget https://github.com/teomyth/iniq/releases/latest/download/iniq-linux-amd64.tar.gz -O iniq.tar.gz
-tar -xzf iniq.tar.gz
-chmod +x iniq
-sudo mv iniq /usr/local/bin/
-```
-
-For Linux (ARM64) using curl:
-
-```bash
-curl -L https://github.com/teomyth/iniq/releases/latest/download/iniq-linux-arm64.tar.gz -o iniq.tar.gz
-tar -xzf iniq.tar.gz
-chmod +x iniq
-sudo mv iniq /usr/local/bin/
-```
-
-For Linux (ARM64) using wget:
-
-```bash
-wget https://github.com/teomyth/iniq/releases/latest/download/iniq-linux-arm64.tar.gz -O iniq.tar.gz
-tar -xzf iniq.tar.gz
-chmod +x iniq
-sudo mv iniq /usr/local/bin/
 ```
 
 ### Install and Run
